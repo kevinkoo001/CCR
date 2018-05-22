@@ -1,11 +1,11 @@
 # Compiler-assisted Code Randomization (CCR)
-**CCR** is a hybrid method to enable practical and generic code transformation, 
-which relies on compiler-rewriter cooperation. The approach allows end users to 
-facilitate rapid fine-grained code randomization (at both a function level and 
-a basic block level) on demand at installation time. The main concept behind CCR 
+**CCR** is a hybrid method for enabling practical and generic code randomization 
+based on compiler-rewriter cooperation. CCR currently supports 
+rapid cliend-side fine-grained code randomization (at both function level and 
+basic block level) at installation time. The main concept behind CCR 
 is to augment final executables with *a minimal (pre-defined) set of 
 transformation-assisting metadata*. The following table briefly shows the essential 
-information that could be collected/adjusted at compilation/linking time.
+information that is collected/adjusted at compilation/linking time.
 
 | Metadata | Collected Information | Collection time |
 | --- | --- | --- |
@@ -24,11 +24,11 @@ information that could be collected/adjusted at compilation/linking time.
 | Jump Table | Size of each jump table entry | Compilation |
 |   | Number of jump table entries | Compilation |
 
-For more details, you can find our paper 
-[here](http://www3.cs.stonybrook.edu/~mikepo/papers/ccr.sp18.pdf).
+For more details, plese refer to our  IEEE S&P 2018 
+[paper](http://www3.cs.stonybrook.edu/~mikepo/papers/ccr.sp18.pdf).
 
 ## How to build CCR
-We provide a handy build script (`build.sh`) to automate entire toolchain generation, which includes:
+We provide a handy build script (`build.sh`) to automate the entire toolchain installation, which includes:
 * modified `LLVM 3.9.0` and `clang` compiler compilation
 * `binutils 2.27` and modified gold linker (`ld-new`) compilation
 * Google's `protocol buffers 3.1.0` compiler (`protoc`) compilation for metadata serialization/deserialization
@@ -43,8 +43,8 @@ Once the build script runs successfully, check out the following components.
 * CCR Gold Linker : `/usr/bin/ld` symbolically links to `./binutils-2.27/gold/ld-new` by default
 * Randomizer      : `./randomizer/prander.py` (`prander` is dubbed as a practical randomizer)
 
-Finally, make sure that CCR could properly load a `shuffleInfo.so`, located in both `/usr/lib` 
-and `/usr/local/lib`. If not, `sudo ldconfig` would help.
+Finally, make sure that CCR can properly load `shuffleInfo.so`, located in both `/usr/lib` 
+and `/usr/local/lib`. If not, `sudo ldconfig` may help.
 ```
 $ ldd $(readlink -e `which ccr`) | grep shuffleInfo
         shuffleInfo.so => /usr/lib/shuffleInfo.so (0x00007f42b4db9000)
@@ -55,16 +55,16 @@ $ ldd $(readlink -e `which ld`) | grep shuffleInfo
 ### Notes for CCR build
 The build script:
 * Requires at least 8GB memory and 30GB HDD space
-* Installs `protoc`, `shuffleInfo.so`, and necessary packages in your system
-* Does not install compiler and linker but create symbolic links instead
-* Changes a default linker to `ld.gold` at the build time, and to `ld-new` in the end
+* Installs `protoc`, `shuffleInfo.so`, and other necessary packages on your system
+* Does not install the compiler and linker, but creates symbolic links instead
+* Changes the default linker to `ld.gold` at build time, and to `ld-new` at the end
 
-> Note the script has been tested on Ubuntu 16.04 only (gcc 5.4 and gold 1.11 have been installed by default). 
+> Note that the script has been tested on Ubuntu 16.04 only (using the default gcc 5.4 and gold 1.11). 
 If you have failed to build everything at the first attempt, you may want to change 
-the default linker to system gold linker before rerun the build script.
+the default linker to the system's gold linker before runing the build script again.
 
 ### Build with Docker
-A Docker script is available for Docker's container image with ease. 
+A Docker script is available for easily testing CCR within a Docker container. 
 The following commands show how to install Docker and how to generate the CCR container.
 ```
 $ curl -fsSL https://get.docker.com/ | sudo sh
@@ -89,8 +89,8 @@ ccr                 latest              687322eff8f3        29 minutes ago      
 ubuntu              16.04               f975c5035748        10 days ago         112MB
 ```
 
-Once the build has been successful, connect to your Docker image with the bash shell 
-to play with the CCR.
+Once the build has been successful, lunch the Docker image 
+to test out CCR.
 ```
 $ docker run --rm -it ccr:latest /bin/bash
 root@c1aa9c064785:/CCR# 
@@ -98,18 +98,18 @@ root@c1aa9c064785:/CCR#
 
 For more information about Docker, visit [here](https://docs.docker.com/)
 
-## Binary Instrumentation with CCR Toolchain
-Once CCR has been successfully deployed, you can use the prototype with a given example 
-in the repository. By simply compiling the source code as below, you will obtain a 
-`ShuffleInfo` (=metadata) message from our linker within the section `.rand`, meaning
-the metadata has been updated/generated to the final executable from all object files.
+## Binary Instrumentation with the CCR Toolchain
+Once CCR has been successfully deployed, you can test it using the included examples. 
+By simply compiling the source code as shown below, you will obtain a 
+`ShuffleInfo` (=metadata) message from the linker with the section `.rand`, meaning
+the metadata has been updated/generated within the final executable from all object files.
 
 ```
 $ ccr -o ./examples/funcptr ./examples/funcptr.c
 Successfully wrote the ShuffleInfo to the .rand section!
 ```
 
-If you want to display the metadata (layout, jump table, and fixups) in detail, 
+If you want to inspect the metadata (layout, jump table, and fixups) in detail, 
 use the `-mllvm -debug-only=ccr-metadata` option.
 ```
 $ ccr -o ./examples/funcptr -mllvm -debug-only=ccr-metadata ./examples/funcptr.c
@@ -193,11 +193,11 @@ Code(B) NOPs(B) MFs     MBBs    Fixups
 ```
 
 > Note that the metadata for the final executable is gzipped to save space 
-in the `.rand` section. The metadata could be separately extracted with `objcopy`. 
-We could read the metadata with a reader script, `shuffleInfoReader.py`, 
-which by default stores its content into a `[name].meta.txt` file. 
-The script also reads the metadata from a binary itself if the `.rand` section 
-could be found. Please refer to the table above about each information for shuffling.
+in the `.rand` section. The metadata can be separately extracted with `objcopy`. 
+You can read the metadata with the reader script `shuffleInfoReader.py`, 
+which by default extracts the metadata into a `[name].meta.txt` file. 
+The script also can reads the metadata from the binary itself if the `.rand` section 
+is found.
 ```
 $ readelf -SW ./examples/funcptr | grep rand
   [28] .rand             PROGBITS        0000000000000000 0010d0 000185 00      0   0  1
@@ -212,13 +212,13 @@ Found the metadata at ./examples/funcptr.shuffle.bin
 Wrote the metadata to ./examples/funcptr.shuffle.bin.meta.txt...
 ```
 
-The following command instruments a program variant with the randomizer, 
-`prander.py`, which takes a single argument as a target binary to be transformed. 
-The default option (`-f`) creates a transformed binary at a function level. 
-(Use a `-b` option for a basic block level.) The name of the variant is 
+The following command generates a program variant with the randomizer, 
+`prander.py`, which takes the binary to be transformed as its only argument.
+The default option (`-f`) creates a transformed binary at the function level
+(Use the `-b` option for basic block level randomization). The name of the variant is 
 `[filename]_shuffled` by default. The `-s` option updates all symbols in 
-a symbol table (`.symtab`) if the binary has not been stripped. 
-For additional options, try a `-h` option for help. In this example, 
+the symbol table (`.symtab`) if the binary has not been stripped. 
+For additional options, try the `-h` option for help. In this example, 
 the `main()` function has been displaced from 0x400790 to 0x400600.
 ```
 $ python ./randomizer/prander.py -s -b ./examples/funcptr
@@ -282,10 +282,10 @@ $ python ./randomizer/prander.py -s -b ./examples/funcptr
  [INFO   ] Success!! The log has been saved to ./examples/funcptr.log (prander.py:162)
 ```
 
-To verify how functions have been relocated, compare the symbols of original binary with 
+To verify how functions have been relocated, compare the symbols of the original binary with 
 those of the variant. For example, the function `switchcase()` has been relocated 
 (`0x400870`->`0x400720`). Note that the intact functions are from CRT (C Run-Time) libraries, 
-which are out of randomization.
+which are excluded from randomization.
 ```
 $ readelf --syms ./examples/funcptr | grep switchcase
     73: 0000000000400870   146 FUNC    GLOBAL DEFAULT   12 switchcase
@@ -294,9 +294,9 @@ $ readelf --syms ./examples/funcptr_shuffled | grep switchcase
     73: 0000000000400720   146 FUNC    GLOBAL DEFAULT   12 switchcase
 ```
 
-The following illustrates `switchcase()` function with [radare2](https://rada.re/r/). 
+The following shows the disassembly of the `switchcase()` function using [radare2](https://rada.re/r/). 
 The operand of every jump/call instruction has been updated accordingly so that 
-original semantics could be preserved.
+the original semantics of the program are preserved.
 ```
 [0x00400870 22% 335 funcptr]> pd $r @ sym.switchcase
 / (fcn) sym.switchcase 45
@@ -393,40 +393,38 @@ original semantics could be preserved.
             0x004007b2      66666666662e.  nop word cs:[rax + rax]
 ```
 
-In general, you may want to set the default compilers as `ccr` and `ccr++` when performing a `configure` script in order to generate `Makefile`. The CCR prototype supports most existing binary features when generating hardened variants including (but not limited to) position independent code (PIC), shared object, exception handling, lazy binding, link time optimization (LTO), and control flow integrity (CFI).
+In general, you may want to set the default compilers as `ccr` and `ccr++` when running the `configure` script  to generate the `Makefile`. The CCR prototype supports most existing binary features when generating hardened variants, including (but not limited to) position independent code (PIC), shared objects, exception handling, lazy binding, link time optimization (LTO), and control flow integrity (CFI).
 
 ## Debian Packages using the CCR Toolchain
-To show how the master executable could be transformed at installation time,
+To demonstrate how the master executable can be transparently transformed at installation time,
 we have modified the debian package source directory to trigger the randomizer.
-Either `apt-get install` or `dpkg -i` command enables one to invoke transformation on demand.
+Either of the `apt-get install` or `dpkg -i` commands trigger code randomization as part of the installation process.
 For more details, see [here](./examples-dpkg/README.md).
 
 ## Pitfalls
-* The current prototype supports an ELF format on a x86_64 platform only.
-* Too many basic blocks and fixups (100,000 or more) may impact on rewriting time.
-* Symbol update might be painfully slow, so we do not recommend `-s` option as a whole.
-* Technically the latest `protobuf` should work but a different version might have unforeseen collision.
+* The current prototype only supports  ELF binaries on the x86_64 platform.
+* Too many basic blocks and fixups (100,000 or more) may impact the rewriting time.
+* Symbol updates are expeirmental and may be slow, so we do not recommend using the `-s` option for large binaries.
+* Technically the latest `protobuf` should work, but different versions may result in unforeseen collisions.
 
 ## Known Limitations
-The CCR prototype has the following limitations.
-* It does not support any self-modifying code.
-* It does not support any debugging-relevant section (i.e., .debug_*).
-* It does not support basic block reordering at the presence of custom exception handling (`.eh_frame` and `.eh_frame_hdr`) (See the appendix of the paper).
-* It does not support one of six LLVM's CFI protection mechanisms, which is `cfi-icall` (See the appendix of the paper).
-* It supports transformation for inline assembly (i.e., `__asm` directive) and full assembly source code (`*.s` files) at a function level only. However, more investigation is required due to various styles of writing assembly file. Theoretically, randomization at a basic block level is feasible by excluding object files (written in assembly) if any assembly gets involved.
+The current CCR prototype has the following limitations.
+* No support for self-modifying code.
+* No support for debugging-relevant sections (i.e., .debug_*).
+* No support for basic block reordering at the presence of custom exception handling (`.eh_frame` and `.eh_frame_hdr`) (See the appendix of the paper).
+* No support for one of the six CFI protection mechanisms of LLVM, which is `cfi-icall` (See the appendix of the paper).
+* Although there is support for inline assembly (i.e., `__asm` directive) and full assembly source code (`*.s` files), it works only for function level randomization. More engineering effort is required for basic block randomization due to the various styles of writing assembly files. Randomization at the basic block level is still feasible by excluding non-compatible object files (written in assembly).
 
 ## Citation
-If your research employees our CCR prototype, please cite the following paper.
+If your research employs our CCR prototype, please cite the following paper:
 ```
-@INPROCEEDINGS{,
-  author = {H. Koo and Y. Chen and L. Lu and V. P. Kemerlis and M. Polychronakis},
-  booktitle = {2018 IEEE Symposium on Security and Privacy (SP)},
+@INPROCEEDINGS{ccr,
+  author = {Hyungjoon Koo and Yaohui Chen and Long Lu and Vasileios~P. Kemerlis and Michalis Polychronakis},
   title = {Compiler-assisted Code Randomization},
+  booktitle = {Proceedings of the 39th IEEE Symposium on Security \& Privacy (S\&P)},
+  pages = {472--488},
+  month = {May},
   year = {2018},
-  pages = {472-488},
-  keywords={code-randomization;return-oriented-programming;compiler-level-protection},
-  doi = {10.1109/SP.2018.00029},
-  url = {doi.ieeecomputersociety.org/10.1109/SP.2018.00029},
-  ISSN = {2375-1207},
+  location = {San Francisco, CA}
 }
 ```
