@@ -1,0 +1,107 @@
+NOTE:
+1. remember to put libshuffleInfo.so to /usr/local/lib
+
+
+--main.cc
+  // Queue up the first set of tasks.
+  queue_initial_tasks(command_line.options(), search_path,
+                      command_line, &workqueue, &input_objects,
+                      &symtab, &layout, mapfile);
+  // Run the main task processing loop.
+  workqueue.process(0);
+  --workqueue.cc
+    Workqueue::find_and_run_task(int thread_number)
+    --readsyms.cc 
+      Read_symbols::do_read_symbols(Workqueue* workqueue)
+        Add_symbols::run()
+            // Lay out the input sections.  We walk through the sections and check
+            // whether they should be included in the link.  If they should, we
+            // pass them to the Layout object, which will return an output section
+            // and an offset.
+            this->object_->layout(this->symtab_, this->layout_, this->sd_);
+            --object.cc
+              Sized_relobj_file<size, big_endian>::do_layout(Symbol_table* symtab,
+                                                            Layout* layout,
+                                                              Read_symbols_data* sd)
+              this->layout_section(layout, i, name, shdr, reloc_shndx[i],
+                                 reloc_type[i]);
+              Output_section* os = layout->layout(this, shndx, name, shdr,
+                                                  reloc_shndx, reloc_type, &offset);
+
+              --layout.cc
+                Layout::layout(Sized_relobj_file<size, big_endian>* object, unsigned int shndx,
+                              const char* name, const elfcpp::Shdr<size, big_endian>& shdr,
+                              unsigned int reloc_shndx, unsigned int, off_t* off)
+              
+                return this->get_output_section(name, name_key, type, flags, order, is_relro);
+
+                *off = os->add_input_section(this, object, shndx, name, shdr, reloc_shndx,
+                                            this->script_options_->saw_sections_clause());
+                --output.cc
+                  Output_section::add_input_section(Layout* layout,
+                                                    Sized_relobj_file<size, big_endian>* object,
+                                                    unsigned int shndx,
+                                                    const char* secname,
+                                                    const elfcpp::Shdr<size, big_endian>& shdr,
+                                                    unsigned int reloc_shndx,
+                                                    bool have_sections_script)
+
+            --object.cc
+            this->object_->add_symbols(this->symtab_, this->sd_, this->layout_);
+              --symtab.cc
+              template<int size, bool big_endian>
+              void
+              Symbol_table::add_from_relobj(
+                                            Sized_relobj_file<size, big_endian>* relobj,
+                                            const unsigned char* syms,
+                                            size_t count,
+                                            size_t symndx_offset,
+                                            const char* sym_names,
+                                            size_t sym_name_size,
+                                            typename Sized_relobj_file<size, big_endian>::Symbols* sympointers,
+                                            size_t* defined)
+              //*:add_from_relobj just create the sym structure into the symtab for each relobj, no value is avalable yet.
+
+
+
+              //section output is done here: @reloc.cc
+              Sized_relobj_file<size, big_endian>::do_relocate(const Symbol_table* symtab,
+                                                                const Layout* layout,
+                                                                Output_file* of)
+
+
+
+              //here we generate padding data in the code sections
+              Output_section::add_input_section(Layout* layout,
+                                                Sized_relobj_file<size, big_endian>* object,
+                                                unsigned int shndx,
+                                                const char* secname,
+                                                const elfcpp::Shdr<size, big_endian>& shdr,
+                                                unsigned int reloc_shndx,
+                                                bool have_sections_script)
+              {
+                  if (aligned_offset_in_section > offset_in_section && !this->generate_code_fills_at_write_
+                      && !have_sections_script
+                      && (sh_flags & elfcpp::SHF_EXECINSTR) != 0
+                      && parameters->target().has_code_fill())
+                  {
+                      // We need to add some fill data.  Using fill_list_ when
+                      // possible is an optimization, since we will often have fill
+                      // sections without input sections.
+                      ///YARP: this is the padding we need to record?
+                      off_t fill_len = aligned_offset_in_section - offset_in_section;
+                      if (this->input_sections_.empty())
+                          this->fills_.push_back(Fill(offset_in_section, fill_len));
+                      else
+                      {
+                          std::string fill_data(parameters->target().code_fill(fill_len));
+                          Output_data_const* odc = new Output_data_const(fill_data, 1);
+                          this->input_sections_.push_back(Input_section(odc));
+                      }
+                  }
+              }
+
+About section output
+    each object maintains a mapping from its own input sections to the final exe/so output section
+                the mapping contains the offsets of the input sections to the corresponding final output sections
+                when emitting the data, each object will emit to the output file based on the mapping 

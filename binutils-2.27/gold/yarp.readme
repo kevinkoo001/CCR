@@ -1,0 +1,8 @@
+dependency:
+  1. put libprotobuf.so at /usr/local/lib
+
+compile yarp gold:
+  1. go to binutils dir, run "./configure && make"
+  2. go to gold dir,
+     2.1 verify there are 'YARP' in Makefile.in
+     2.2 run "./configure && make"
