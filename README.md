@@ -96,6 +96,12 @@ $ docker run --rm -it ccr:latest /bin/bash
 root@c1aa9c064785:/CCR# 
 ```
 
+Or you can just download the images that everything is ready to use.
+```
+$ docker pull kevinkoo001/ccr:0.8
+$ docker run --rm -it kevinkoo001/ccr:0.8 /bin/bash
+```
+
 For more information about Docker, visit [here](https://docs.docker.com/)
 
 ## Binary Instrumentation with CCR Toolchain
