@@ -2689,6 +2689,13 @@ bool AsmParser::parseDirectiveValue(unsigned Size) {
 //  ::= (.single | .double) [ expression (, expression)* ]
 void AsmParser::handleDirectEmitDirectives(unsigned sz) {
   //const MCSubtargetInfo& STI = getTargetParser().getSTI();
+  
+  // Control a corner case: in assembly it is possible to start with data before defining a function
+  if (MAI.assemFuncNo == 0xffffffff) {
+    MAI.specialCntPriorToFunc += sz;
+    return;
+  }
+
   std::string parentID = (MAI.isAssemFile) ? \
                          std::to_string(MAI.assemFuncNo) + "_" + std::to_string(MAI.assemBBLNo) : MAI.latestParentID;
   //errs() << "AsmParser: " << parentID << "(" << sz << "B)\n";

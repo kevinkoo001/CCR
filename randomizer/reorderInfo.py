@@ -94,9 +94,11 @@ class Objects(BinaryInfo):
         self.lookupByVA = dict()
 
         # Unpack the object information
-        self.objSize, self.objFuncCnt = ObjInfo
+        self.objSize, self.objFuncCnt, self.srcKind = ObjInfo
         self.numObjects = len(self.objSize)
         self.numFuncs = sum(self.objFuncCnt)
+        #if len(self.srcKind) > 0:
+        #    assert (self.numObjects == len(self.srcKind))
 
         self.objOffset = util.getOffset(self.objSize)
         self.objOffsetFromSection = util.computeRelaOffset(self.objOffset, self.reorderObjStartFromText)
@@ -112,6 +114,8 @@ class Objects(BinaryInfo):
             OBJ.idx = idx
             OBJ.size = self.objSize[idx]
             OBJ.VA = self.objVA[idx]
+            #if len(self.srcKind) > 0:
+            #    OBJ.srcKind = self.srcKind[idx]
 
             if prevObj:
                 prevObj.next = OBJ
@@ -473,8 +477,12 @@ class Fixups():
                     logging.warning('\t[%s] Has wrong type (Fixup#%d): %s' % (sn, FI.idx, C.FIXUP_TYPE[FI.type]))
                     saneFlag = False
                 if FI.type == C.FT_C2C and not FI.refBB:
-                    logging.warning('\t[%s] Fails to discover the reference BBL (Fixup#%d)' % (sn, FI.idx))
-                    saneFlag = False
+                    if FI.parent.parent.parent.srcKind == C.SRC_TYPE_ASSEMBLY:
+                        logging.warning("\t[%s] Fixup %d comes from standalone assembly (Obj#%d)!" %
+                                        (sn, FI.idx, FI.parent.parent.parent.idx))
+                    else:
+                        logging.warning('\t[%s] Fails to discover the reference BBL (Fixup#%d)' % (sn, FI.idx))
+                        saneFlag = False
                 if FI.VA < FI.parent.VA:
                     logging.warning('\t[%s] Has wrong Fixup VA: VA(Parent BBL)=0x%04x VS VA(Fixup)=0x%04x'
                                    % (sn, FI.parent.VA, FI.VA))
@@ -527,7 +535,7 @@ class EssentialInfo():
 
         # Pre-processing: data collection and preparation for building essential information
         binInfo = RI['bin_info']
-        objInfo = (RI['obj_size'], RI['obj_func_cnt'])
+        objInfo = (RI['obj_size'], RI['obj_func_cnt'], RI['obj_src_type'])
         funcInfo = (RI['func_size'], RI['func_bb_cnt'])
         bbInfo = (RI['bb_size'], RI['bb_fixup_cnt'], RI['bb_fall_through'])
 

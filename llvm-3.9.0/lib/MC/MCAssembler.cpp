@@ -726,6 +726,13 @@ void updateReorderInfoValues(const MCAsmLayout &Layout) {
               
               if (tmpSN.length() > 0) continue;
               MAI->MBBLayoutOrder.push_back(ID);
+              
+              // Handle a corner case: see handleDirectEmitDirectives() in AsmParser.cpp
+              if (MAI->specialCntPriorToFunc > 0) {
+                MAI->updateByteCounter(ID, MAI->specialCntPriorToFunc, /*numFixups=*/ 0, /*isAlign=*/ false, /*isInline=*/ false);
+                MBBSize += MAI->specialCntPriorToFunc;
+                MAI->specialCntPriorToFunc = 0;
+              }
   
               // Update the MBB offset, MF Size and section name accordingly
               std::get<1>(MAI->MachineBasicBlocks[ID]) = totalOffset;
@@ -901,10 +908,22 @@ void setFixups(std::list<std::tuple<unsigned, unsigned, bool, std::string, std::
 void serializeReorderInfo(ShuffleInfo::ReorderInfo* ri, const MCAsmLayout &Layout) {
   // Set the binary information for reordering
   ShuffleInfo::ReorderInfo_BinaryInfo* binaryInfo = ri->mutable_bin();
-  binaryInfo->set_rand_obj_offset(0x0); // Should be updated at linking time
-  binaryInfo->set_main_addr_offset(0x0);    // Should be updated at linking time 
+  binaryInfo->set_rand_obj_offset(0x0);     // Should be updated at linking time
+  binaryInfo->set_main_addr_offset(0x0);    // Should be updated at linking time
   
   const MCAsmInfo *MAI = Layout.getAssembler().getContext().getAsmInfo();
+  
+  // Identify this object file has been compiled from:
+  //    obj_type = 0: a general source file (i.e., *.c, *.cc, *.cpp, ...)
+  //    obj_type = 1: a source file that contains inline assembly
+  //    obj_type = 2: standalone assembly file (i.e., *.s, *.S, ...)
+  if (MAI->isAssemFile)
+    binaryInfo->set_src_type(2);
+  else if (MAI->hasInlineAssembly)
+    binaryInfo->set_src_type(1);
+  else
+    binaryInfo->set_src_type(0);
+
   updateReorderInfoValues(Layout);
   
   // Set the layout of both Machine Functions and Machine Basic Blocks with protobuf definition

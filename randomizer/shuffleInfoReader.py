@@ -59,6 +59,7 @@ def deserializeInfo(ri):
     obj = ri.bin
     bblLayout = ri.layout
     fixups = ri.fixup
+    srcTypes = ri.source
 
     obj_sz, fn_sz, bbl_sz = [], [], []
     objLayout, funLayout, FixupCnts = [], [], []  #fn/obj, #bbl/fn
@@ -169,6 +170,8 @@ def deserializeInfo(ri):
     _collectDataSet(C.DS_FIXUP_DATAREL, fixupsDataRel)
     _collectDataSet(C.DS_FIXUP_INIT_ARR, fixupsInitArray)
 
+    dataset['obj_src_type'] = srcTypes.src_type
+
     logging.info('\tNumber of Jump Tables : %d' %
                  len(filter(lambda x: x!=0, dataset['fixup_num_jt_entries'])))
 
@@ -193,6 +196,7 @@ def readOnly(outFile, randInfo):
     obj = randInfo.bin
     bblLayout = randInfo.layout
     fixups = randInfo.fixup
+    srcTypes = randInfo.source
 
     out = open(outFile, 'w')
     out.write("Main Addr Offset   : 0x%04x\n" % obj.main_addr_offset)
@@ -220,6 +224,16 @@ def readOnly(outFile, randInfo):
         printFixups(fixups[fi].data, C.SEC_DATA)
         printFixups(fixups[fi].datarel, C.SEC_DATA_REL)
         printFixups(fixups[fi].initarray, C.SEC_INIT_ARR)
+
+    numObjs = len(srcTypes.src_type)
+    if numObjs > 0:
+        out.write("Total Objects: %d\n" % (numObjs))
+        for j in range(numObjs):
+            ty = srcTypes.src_type[j]
+            if ty > 0:
+                out.write("\tObj %d: %s\n" % (j, C.SRC_TYPE[ty]))
+    else:
+        logging.critical("The metadata does not contain the type of an object (obsolete ver?)")
 
     out.close()
     print "\tMain Addr Offset   : 0x%04x" % obj.main_addr_offset

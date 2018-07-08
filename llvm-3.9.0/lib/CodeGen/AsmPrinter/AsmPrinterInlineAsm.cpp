@@ -156,6 +156,7 @@ void AsmPrinter::EmitInlineAsm(StringRef Str, const MCSubtargetInfo &STI,
   //            sets ParentID in MCInst (MatchAndEmitATTInstruction and MatchAndEmitIntelInstruction)
   //            Make sure TAP's getSTI() should be updated before entering Parser->Run()!
   (&TAP->getSTI())->setParentID(parentID);
+  MCAI->hasInlineAssembly = true;
   int Res = Parser->Run(/*NoInitialTextSection*/ true,
                         /*NoFinalize*/ true);
   

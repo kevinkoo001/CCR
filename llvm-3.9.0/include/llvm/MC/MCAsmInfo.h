@@ -416,9 +416,11 @@ public:
   //     The following method helps full-assembly file (*.s) identify functions and basic blocks
   //     that inherently lacks their boundaries because neither MF nor MBB has been constructed.
   mutable bool isAssemFile = false;
+  mutable bool hasInlineAssembly = false;
   mutable std::string prevOpcode;
   mutable unsigned assemFuncNo = 0xffffffff;
   mutable unsigned assemBBLNo = 0;
+  mutable unsigned specialCntPriorToFunc = 0;
 
   // Update emittedBytes from either DataFragment, RelaxableFragment or AlignFragment
   void updateByteCounter(std::string id, unsigned emittedBytes, unsigned numFixups, \

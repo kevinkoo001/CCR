@@ -26,6 +26,7 @@ class Object():
         self.offsetFromBase = 0x0
         self.fixupCnt = 0
         self.VA = 0x0
+        self.srcKind = 0  # SRC_TYPE_C as defined in constants.py
 
         # The structure btn objects (doubly linked list) and the hierarchy (tree)
         self.parent = None   # The parent of the object is always the binary (root)

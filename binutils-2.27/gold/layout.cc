@@ -3248,13 +3248,13 @@ namespace gold
         ///update the [source = 4]
         //   Add the source type of object file
         //   [generalSource | inlineAssembly, standaloneAssembly] = (0-2)
-        // if (accum_obj_text > 0) {
-           // ShuffleInfo::ReorderInfo_SourceInfo* psrcinfo = gsi.mutable_source();
-           // psrcinfo->add_src_type(to_add_info.bin().src_type());
-// #ifdef CCR_MSG_DETAILS
-           // gold_info("[CCR] Added source type for %s: %d + %d = %d", pfrom_object->name().c_str(), pbininfo->obj_sz(), accum_obj_text, object_size);
-// #endif
-        // }
+        if (accum_obj_text > 0) {
+           ShuffleInfo::ReorderInfo_SourceInfo* psrcinfo = gsi.mutable_source();
+           psrcinfo->add_src_type(to_add_info.bin().src_type());
+#ifdef CCR_MSG_DETAILS
+           gold_info("[CCR] Added source type for %s: %d + %d = %d", pfrom_object->name().c_str(), pbininfo->obj_sz(), accum_obj_text, object_size);
+#endif
+        }
         
 #ifdef CCR_MSG_DETAILS
         gold_info("+++AddShuffleInfo End+++");

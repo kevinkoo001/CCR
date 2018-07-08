@@ -30,7 +30,7 @@ Sizes = {
 }
 
 
-VERSION = '0.8'
+VERSION = '0.81'
 METADATA_PATH = '/tmp/metadata.tmp.gz'
 NEWBIN_POSTFIX = '_shuffled'
 METADATA_POSTFIX = '.shuffle.bin'
@@ -60,6 +60,9 @@ SEC_SYMTAB    = '.symtab'
 # Type definitions
 BBL_TYPE   = {0: "BBL", 1: "FUN", 2: "OBJ"}
 FIXUP_TYPE = {0: "C2C", 1: "C2D", 2: "D2C", 3: "D2D", 4: "NewSectionStart", 5: 'Special'}
+SRC_TYPE   = {0: "C/C++", 1: "Inline Assembly", 2:"Standalone Assembly"}
+
+SRC_TYPE_C, SRC_TYPE_INLINE, SRC_TYPE_ASSEMBLY = 0, 1, 2
 FT_C2C, FT_C2D, FT_D2C, FT_D2D = 0, 1, 2, 3
 FT_NewSec  = 4 # Fixup Type that new section begins
 FT_Special = 5 # {".text.unlikely", ".text.exit", ".text.startup", ".text.hot"} section
