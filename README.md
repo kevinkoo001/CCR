@@ -1,4 +1,10 @@
 # Compiler-assisted Code Randomization (CCR)
+## Update News
+07/08/18 CCR internally checks if an object file is compiled from the source code 
+that includes assembly (none/inline/standalone). This information will help
+randomization at function level in case of standalone assembly later.
+
+## Overview
 **CCR** is a hybrid method for enabling practical and generic code randomization 
 based on compiler-rewriter cooperation. CCR currently supports 
 rapid cliend-side fine-grained code randomization (at both function level and 
