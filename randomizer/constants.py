@@ -30,7 +30,7 @@ Sizes = {
 }
 
 
-VERSION = '0.81'
+VERSION = '0.82'
 METADATA_PATH = '/tmp/metadata.tmp.gz'
 NEWBIN_POSTFIX = '_shuffled'
 METADATA_POSTFIX = '.shuffle.bin'
@@ -56,6 +56,7 @@ SEC_DYNSYM    = '.dynsym'
 SEC_EH_FRAME  = '.eh_frame'
 SEC_EH_FR_HDR = '.eh_frame_hdr'
 SEC_SYMTAB    = '.symtab'
+SEC_DEBUG_INFO= '.debug_info'
 
 # Type definitions
 BBL_TYPE   = {0: "BBL", 1: "FUN", 2: "OBJ"}

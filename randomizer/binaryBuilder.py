@@ -347,6 +347,15 @@ class BinaryBuilder():
         randRangeBottom = self.EI._getTextSecVA() + self.EI.reorderObjStartFromText
         randRangeTop = randRangeBottom + self.EI.reorderedObjSize
 
+        # [FIXME] Define a temporary bag to contain symval and symsize
+        #         Ugly hack - it arises from the discrepancy of the function (symbol) size
+        #                     that lacks alignment size; maybe we could do better
+        sym_temp_lookup = {}
+        for symbol in symbolTable.iter_symbols():
+            symVal, symSz = symbol['st_value'], symbol['st_size']
+            if randRangeBottom <= symVal < randRangeTop:
+                sym_temp_lookup[symVal] = symSz
+
         for symbol in symbolTable.iter_symbols():
             """
             # The first 8 bytes have to be always identical - combined to symProperty
@@ -357,24 +366,27 @@ class BinaryBuilder():
             symVal, symSz = symbol['st_value'], symbol['st_size']
             self.instBin += symProperty
 
-            # We only need to update the symbol value (either absolute or relative VA) here
+            # We only need to update the symbol value/size (either absolute or relative VA) here
             if randRangeBottom <= symVal < randRangeTop:
                 try:
-                    newSymVal = self.EI.getBBlByVA(symVal).newVA
+                    sym_fn = self.EI.getBBlByVA(symVal)
+                    newSymVal = sym_fn.newVA
                     self.instBin += self.PK(FMT.LONG, newSymVal)
+                    self.instBin += self.PK(FMT.LONG, sym_temp_lookup[symVal])
+
                     patchCtr += 1
                     logging.debug(" [%s] Original: 0x%x -> Updated: 0x%x" % (secName, symVal, newSymVal))
 
                     # [NEW] Let's save the symbol name for each function defined as a symbol
-                    self.EI.getBBlByVA(symVal).parent.name = symbol.name
+                    sym_fn.parent.name = symbol.name
 
                 except AttributeError:
                     self.instBin += self.PK(FMT.LONG, symVal)
                     logging.warning(" [%s] Failed to update the symbol: 0x%x " % (secName, symVal))
             else:
                 self.instBin += self.PK(FMT.LONG, symVal)
+                self.instBin += self.PK(FMT.LONG, symSz)
 
-            self.instBin += self.PK(FMT.LONG, symSz)
             # Each entry for a symbol is 24B in size; Move on the next entry
             symOffset += 24
             symbolBar += 1
@@ -646,6 +658,134 @@ class BinaryBuilder():
         self.instBin += sectionChunk[pos:]
         self.memo.numEhframeHdrPatch = patchCtr
 
+    def patchDebugInfo(self, secName, sectionChunk):
+        """
+        .debug_info section update
+            The following code is based on a dwarf example of an elftools library
+            From an official DWARF documenation (http://dwarfstd.org/doc/DWARF4.pdf)
+                a) DW_AT_low_pc and DW_AT_high_pc pair or a DW_AT_ranges attribute
+                   encode the contiguous or non-contiguous address ranges, respectively,
+                   of the machine instructions generated for the compilation unit
+                b) DW_AT_name attribute
+                   a null-terminated string containing the path name of the primary source
+                c) DW_AT_stmt_list attribute
+                   a section offset to the line number information for compilation unit
+                d) DW_AT_macro_info attribute
+                   a section offset to the macro information for compilation unit
+        :param secName:
+        :param sectionChunk:
+        :return:
+        """
+        def _decode_funcname(dwarfinfo, address):
+            # Go over all DIEs in the DWARF information, looking for a subprogram
+            # entry with an address range that includes the given address. Note that
+            # this simplifies things by disregarding subprograms that may have
+            # split address ranges.
+            for CU in dwarfinfo.iter_CUs():
+                for DIE in CU.iter_DIEs():
+                    try:
+                        if DIE.tag == 'DW_TAG_subprogram':
+                            lowpc = DIE.attributes['DW_AT_low_pc'].value
+
+                            # DWARF v4 in section 2.17 describes how to interpret the
+                            # DW_AT_high_pc attribute based on the class of its form.
+                            # For class 'address' it's taken as an absolute address
+                            # (similarly to DW_AT_low_pc); for class 'constant', it's
+                            # an offset from DW_AT_low_pc.
+                            highpc_attr = DIE.attributes['DW_AT_high_pc']
+                            highpc_attr_class = describe_form_class(highpc_attr.form)
+                            if highpc_attr_class == 'address':
+                                highpc = highpc_attr.value
+                            elif highpc_attr_class == 'constant':
+                                highpc = lowpc + highpc_attr.value
+                            else:
+                                print('Error: invalid DW_AT_high_pc class:',
+                                      highpc_attr_class)
+                                continue
+
+                            if lowpc <= address <= highpc:
+                                return DIE.attributes['DW_AT_name'].value
+                    except KeyError:
+                        continue
+            return None
+
+        def _decode_file_line(dwarfinfo, address):
+            '''
+            Go over all the line programs in the DWARF information, looking for
+            one that describes the given address.
+            '''
+            for CU in dwarfinfo.iter_CUs():
+                # First, look at line programs to find the file/line for the address
+                lineprog = dwarfinfo.line_program_for_CU(CU)
+                prevstate = None
+                for entry in lineprog.get_entries():
+                    # We're interested in those entries where a new state is assigned
+                    if entry.state is None or entry.state.end_sequence:
+                        continue
+                    # Looking for a range of addresses in two consecutive states that
+                    # contain the required address.
+                    if prevstate and prevstate.address <= address < entry.state.address:
+                        filename = lineprog['file_entry'][prevstate.file - 1].name
+                        line = prevstate.line
+                        return filename, line
+                    prevstate = entry.state
+            return None, None
+
+        def _decode_addr(address):
+            funcname = _decode_funcname(dwarfinfo, address)
+            file, line = _decode_file_line(dwarfinfo, address)
+
+            logging.debug('\tFunction: %s' % bytes2str(funcname))
+            logging.debug('\tFile: %s' % bytes2str(file))
+            logging.debug('\tLine: %s' % line)
+
+        dwarfinfo = self.EP.elf.get_dwarf_info()
+
+        # Experimental: reading statement advances
+        # CUs = [x for x in dwarfinfo.iter_CUs()]
+        # debug_line = dwarfinfo.line_program_for_CU(CUs[0])
+        # debug_line_entries = debug_line.get_entries()
+        # stmts = [hex(x.state.address) for x in debug_line_entries if x.state is not None]
+
+        from elftools.common.py3compat import itervalues, bytes2str
+        from elftools.dwarf.descriptions import describe_form_class
+
+        update_pos_vals = {}
+        for CU in dwarfinfo.iter_CUs():
+            # DWARFInfo allows to iterate over the compile units contained in
+            # the .debug_info section. CU is a CompileUnit object, with some
+            # computed attributes (such as its offset in the section) and
+            # a header which conforms to the DWARF standard. The access to
+            # header elements is, as usual, via item-lookup.
+            logging.debug('  Found a compile unit at offset %s, length %s' %
+                          (CU.cu_offset, CU['unit_length']))
+
+            # A CU provides a simple API to iterate over all the DIEs in it.
+            for DIE in CU.iter_DIEs():
+                # Go over all attributes of the DIE. Each attribute is an
+                # AttributeValue object (from elftools.dwarf.die)
+                # Here we only care the addresses for the subprograms
+                # TODO: check it out for DW_TAG_inlined_subroutine (DWARF4)!
+                for attr in itervalues(DIE.attributes):
+                    if attr.name == 'DW_AT_low_pc' and DIE.tag == 'DW_TAG_subprogram':
+                        logging.debug('   DIE %s. attr %s. Off: 0x%x, Addr:0x%x' %
+                                        (DIE.tag, attr.name, attr.offset, attr.value))
+
+                        #_decode_addr(attr.value)
+                        update_pos_vals[attr.offset] = attr.value
+
+        pos = 0
+        for off in sorted(update_pos_vals.keys()):
+            self.instBin += sectionChunk[pos:off]
+            va = update_pos_vals[off]
+            if self.EI.base > 0:
+                updated_va = self.EI.getBBlByVA(va).newVA
+                self.instBin += self.PK(FMT.ULONG, updated_va)
+                logging.debug('[%s] 0x%08x -> 0x%08x' % (secName, va, updated_va))
+                pos = off + 8
+
+        self.instBin += sectionChunk[pos:]
+
     def instrumentBin(self, origBin, emittedBin, isSymbolUpdate):
         """
         The addr of main is stored in rdi register. Should be received from linker
@@ -728,6 +868,9 @@ class BinaryBuilder():
             elif layoutName == C.SEC_EH_FRAME:
                 # ehframeSection = self.EP.elf.get_section_by_name(layoutName)
                 self.patchEhframe(layoutName, sectionChunk)
+
+            elif layoutName == C.SEC_DEBUG_INFO:
+                self.patchDebugInfo(layoutName, sectionChunk)
 
             elif layoutName == C.SEC_EH_FR_HDR:
                 # ehframeSection = self.EP.elf.get_section_by_name(layoutName)

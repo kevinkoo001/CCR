@@ -1,5 +1,7 @@
 # Compiler-assisted Code Randomization (CCR)
 ## Update News
+10/08/18 A randomizer (`prander`) partially supports updates for a `.debug_info` section. It is just experimental. A `.debug_line` section has to be updated as well.
+
 07/08/18 CCR internally checks if an object file is compiled from the source code 
 that includes assembly (none/inline/standalone). This information will help
 randomization at function level in case of standalone assembly later.
@@ -416,7 +418,7 @@ For more details, see [here](./examples-dpkg/README.md).
 ## Pitfalls
 * The current prototype only supports  ELF binaries on the x86_64 platform.
 * Too many basic blocks and fixups (100,000 or more) may impact the rewriting time.
-* Symbol updates are expeirmental and may be slow, so we do not recommend using the `-s` option for large binaries.
+* Symbol updates are experimental and may be slow, so we do not recommend using the `-s` option for large binaries.
 * Technically the latest `protobuf` should work, but different versions may result in unforeseen collisions.
 
 ## Known Limitations
