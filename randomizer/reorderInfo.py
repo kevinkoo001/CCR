@@ -97,8 +97,6 @@ class Objects(BinaryInfo):
         self.objSize, self.objFuncCnt, self.srcKind = ObjInfo
         self.numObjects = len(self.objSize)
         self.numFuncs = sum(self.objFuncCnt)
-        #if len(self.srcKind) > 0:
-        #    assert (self.numObjects == len(self.srcKind))
 
         self.objOffset = util.getOffset(self.objSize)
         self.objOffsetFromSection = util.computeRelaOffset(self.objOffset, self.reorderObjStartFromText)
@@ -114,8 +112,8 @@ class Objects(BinaryInfo):
             OBJ.idx = idx
             OBJ.size = self.objSize[idx]
             OBJ.VA = self.objVA[idx]
-            #if len(self.srcKind) > 0:
-            #    OBJ.srcKind = self.srcKind[idx]
+
+            OBJ.srcKind = self.srcKind[idx]
 
             if prevObj:
                 prevObj.next = OBJ
@@ -480,6 +478,7 @@ class Fixups():
                     if FI.parent.parent.parent.srcKind == C.SRC_TYPE_ASSEMBLY:
                         logging.warning("\t[%s] Fixup %d comes from standalone assembly (Obj#%d)!" %
                                         (sn, FI.idx, FI.parent.parent.parent.idx))
+                        continue
                     else:
                         logging.warning('\t[%s] Fails to discover the reference BBL (Fixup#%d)' % (sn, FI.idx))
                         saneFlag = False

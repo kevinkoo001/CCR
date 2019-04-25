@@ -208,7 +208,7 @@ class BinaryBuilder():
             for off in sorted(fixupBBLOffs.keys()):
                 # Code part to preserve
                 self.instBin += BBLcode[pos:off]
-                # Fixup reference to be updated (already from performReorder())
+                # Fixup reference to be updated (already from performTransformation())
                 refSz, refVal = fixupBBLOffs[off]
                 try:
                     self.instBin += struct.pack(self.getFormat(refSz), refVal)

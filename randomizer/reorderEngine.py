@@ -31,6 +31,9 @@ class ReorderCore(EssentialInfo):
         self.R = report
         self.__recordSummary()
 
+        # Test purpose
+        #random.seed(1)
+
     # Wrapper getters to obtain essential objects
     def getBinary(self):      return self.EI.getBinary()
     def getObjects(self):     return self.EI.getObjects()
@@ -62,16 +65,24 @@ class ReorderCore(EssentialInfo):
         """
         firstBBL = self.EI.getBasicBlock(BBLs[0][0])
 
+        # Exclude BBL shuffling for a hand-written assembly case
+        if firstBBL.parent.parent.srcKind == C.SRC_TYPE_ASSEMBLY:
+            logging.debug("[Case 0] (F#%2d) Standalone Assembly: %s" \
+                          % (firstBBL.parent.idx, BBLs))
+            return BBLs
+
         # If there is a single BBL, no need to shuffle the bucket
         if len(BBLs) == 1:
-            logging.debug("[Case 1] No simulation for BBL#%d", firstBBL.idx)
+            logging.debug("[Case 1] (F#%2d) Single BBL: %s" \
+                          % (firstBBL.parent.idx, BBLs))
             return BBLs
 
         # If the size of this function is smaller than 128B, go shuffle it
         if firstBBL.parent.size < 128:
-            logging.debug("[Case 2] Function#%3d (%dB) size is smaller than 128B" \
+            logging.debug("[Case 2] (F#%2d) %dB < 128B" \
                       % (firstBBL.parent.idx, firstBBL.parent.size))
             random.shuffle(BBLs)
+            logging.debug("\t\t%s (Success)", BBLs)
             self.R.entropyBBL.append(len(BBLs))
             return BBLs
 
@@ -86,10 +97,11 @@ class ReorderCore(EssentialInfo):
 
         # If there is no constraint in the BBL set, go shuffle it
         if len(chkFixupsShortDist) == 0:
-            logging.debug("[Case 3] No short distance fixups (<4B) for FUN#%3d" \
-                    % self.EI.getBasicBlock(BBLs[0][0]).parent.idx)
+            logging.debug("[Case 3] (F#%2d) No short distance fixups (<4B): %s" \
+                    % (self.EI.getBasicBlock(BBLs[0][0]).parent.idx, BBLs))
             random.shuffle(BBLs)
             self.R.entropyBBL.append(len(BBLs))
+            logging.debug("\t\t%s (Success)", BBLs)
             return BBLs
 
         import copy
@@ -97,7 +109,8 @@ class ReorderCore(EssentialInfo):
         originalBBLs = copy.deepcopy(BBLs)
         originalList = sum(originalBBLs, [])
 
-        logging.debug("[Case 4] Shuffle test until finding the solution")
+        logging.debug("[Case 4] (F#%2d) Simulation" \
+                      % (self.EI.getBasicBlock(BBLs[0][0]).parent.idx))
 
         while True:
             random.shuffle(BBLs)
@@ -125,13 +138,13 @@ class ReorderCore(EssentialInfo):
                     anyFalseFixupRef = True
 
             if not anyFalseFixupRef:
-                logging.debug("\tFound the appropriate order (Tried: %d): %s" % (tryCnt, BBLs))
+                logging.debug("\t\t%s (Success after %d attempts)" % (BBLs, tryCnt))
                 self.R.entropyBBL.append(len(BBLs))
                 return BBLs
 
             if tryCnt > 10:
                 BBLs = copy.deepcopy(originalBBLs)
-                logging.debug("\tCannot find the solution, get back to the original (Tried: %d): %s" % (tryCnt, BBLs))
+                logging.debug("\t\t%s (Failed after %d attempts)" % (BBLs, tryCnt))
                 return BBLs
 
     def _generateRandTable(self, granularity=1):
@@ -141,15 +154,14 @@ class ReorderCore(EssentialInfo):
             b) function-level randomization
             c) fallThrough blocks have to move around together
             d) maximum distances between BBLs due to derefSz in the fixup
+            e) functions from hand-written assembly
         :return:
         """
 
         funcLayout = []
 
-        '''
-        The following process discovers any reference pointing to the function outside
-        Such case will be viewed as a single function to satisfy the constraint (d)
-        '''
+        # The following process discovers any reference pointing to the function outside
+        # Such case will be viewed as a single function to satisfy the constraint (d)
         curFunc = self.getFunctions()[0]
         constCtr = 0
         prevMFSet = None
@@ -158,23 +170,31 @@ class ReorderCore(EssentialInfo):
             mergedFuncs = set()
             chkBBLs = curFunc.BasicBlocks
 
-            for curBBL in chkBBLs:
-                if len(curBBL.Fixups) == 0:
-                    mergedFuncs.add(curBBL.parent.idx)
-                    continue
-                for fixup in curBBL.Fixups:
-                    if fixup.type == 0 and fixup.derefSz < 4 and fixup.refBB:
-                        funcFixupParent = fixup.parent.parent
-                        funcFixupRefParent = fixup.refBB.parent
-                        mergedFuncs.add(funcFixupParent.idx)
+            # In case of standalone assembly (e)
+            # [Note] Assume that all fixups in the object refer to BBLs within
+            if curFunc.parent.srcKind == C.SRC_TYPE_ASSEMBLY:
+                while curFunc and curFunc.parent.srcKind == C.SRC_TYPE_ASSEMBLY:
+                    mergedFuncs.add(curFunc.idx)
+                    curFunc = curFunc.next
 
-                        # The reference is pointing to the outside of this function
-                        if funcFixupParent.idx != funcFixupRefParent.idx:
-                            mergedFuncs.add(funcFixupRefParent.idx)
-                            chkBBLs += funcFixupRefParent.BasicBlocks
-                            curFunc = self.EI.getFunction(funcFixupRefParent.idx)
-                    else:
+            else:
+                for curBBL in chkBBLs:
+                    if len(curBBL.Fixups) == 0:
                         mergedFuncs.add(curBBL.parent.idx)
+                        continue
+                    for fixup in curBBL.Fixups:
+                        if fixup.type == 0 and fixup.derefSz < 4 and fixup.refBB:
+                            funcFixupParent = fixup.parent.parent
+                            funcFixupRefParent = fixup.refBB.parent
+                            mergedFuncs.add(funcFixupParent.idx)
+
+                            # The reference is pointing to the outside of this function
+                            if funcFixupParent.idx != funcFixupRefParent.idx:
+                                mergedFuncs.add(funcFixupRefParent.idx)
+                                chkBBLs += funcFixupRefParent.BasicBlocks
+                                curFunc = self.EI.getFunction(funcFixupRefParent.idx)
+                        else:
+                            mergedFuncs.add(curBBL.parent.idx)
 
             MF = sorted(mergedFuncs)
 
@@ -226,6 +246,9 @@ class ReorderCore(EssentialInfo):
         Now reorder the Basic Blocks within each Function Layout
         Similarly canFallThrough BBL constraint (c) can be dealt with (d)
         '''
+        if granularity > 0:
+            logging.debug("Shuffling at the BBL granularity...")
+
         for F in funcLayout:
             BBLs = []
 
@@ -261,14 +284,15 @@ class ReorderCore(EssentialInfo):
                 BBLs = self.simulateShuffleBBLs(BBLs)
 
             self.randLayout.append(BBLs)
-            logging.debug("\tShuffling at the BBL granularity...")
 
         # Reorder the Functions - it is safe because the compartmentalized bulks meet all constraints
         random.shuffle(self.randLayout)
         funEntropy = len(self.randLayout)
         self.R.entropyFun = funEntropy
 
-        logging.debug("\tShuffling at the FUN granularity...")
+        logging.debug("Shuffling at the FUN granularity...")
+        logging.debug("Final Function Layout with Constraints: %s", funcLayout)
+        logging.debug("Final BBL Layout with Constraints: %s", self.randLayout)
 
         # Unnest the nested list containing BBLs
         self.randLayout = reduce(lambda x, y: x + y,
@@ -312,6 +336,10 @@ class ReorderCore(EssentialInfo):
         jumpTables = dict() # VA: (numJTEntries, jtEntrySz)
         if self.hasFixupsInText():
             for FI in self.getFixupsText():
+                # For the fixups in standalone assembly, just skip them to update
+                if FI.parent.parent.parent.srcKind == C.SRC_TYPE_ASSEMBLY:
+                    continue
+
                 # For fixups in .text, newVA needs to be updated
                 FIOffsetBBL = FI.VA - FI.parent.VA
                 FI.newVA = FI.parent.newVA + FIOffsetBBL

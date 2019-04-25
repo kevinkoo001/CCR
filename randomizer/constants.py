@@ -30,7 +30,7 @@ Sizes = {
 }
 
 
-VERSION = '0.82'
+VERSION = '0.83'
 METADATA_PATH = '/tmp/metadata.tmp.gz'
 NEWBIN_POSTFIX = '_shuffled'
 METADATA_POSTFIX = '.shuffle.bin'

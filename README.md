@@ -1,10 +1,17 @@
 # Compiler-assisted Code Randomization (CCR)
 ## Update News
-10/08/18 A randomizer (`prander`) partially supports updates for a `.debug_info` section. It is just experimental. A `.debug_line` section has to be updated as well.
+04/25/19 CCR supports handwritten (standalone) assembly files. Because LLVM does not
+generate any internal MBB/MF structure, we silently skip fixup updates. Technically,
+it is difficult to obtain basic block boundaries from the compiler thus CCR excludes
+randomization for an object file generated from standalone assembly. Note that LTO also
+ignores optimization for such object files.
+
+10/08/18 A randomizer (`prander`) partially supports updates for a `.debug_info` section. 
+It is just experimental. A `.debug_line` section has to be updated as well.
 
 07/08/18 CCR internally checks if an object file is compiled from the source code 
 that includes assembly (none/inline/standalone). This information will help
-randomization at function level in case of standalone assembly later.
+randomization at the function level in case of standalone assembly later.
 
 ## Overview
 **CCR** is a hybrid method for enabling practical and generic code randomization 
