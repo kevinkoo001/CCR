@@ -44,6 +44,9 @@ extern ReorderInfo_FixupInfo_FixupTupleDefaultTypeInternal _ReorderInfo_FixupInf
 class ReorderInfo_LayoutInfo;
 class ReorderInfo_LayoutInfoDefaultTypeInternal;
 extern ReorderInfo_LayoutInfoDefaultTypeInternal _ReorderInfo_LayoutInfo_default_instance_;
+class ReorderInfo_SourceInfo;
+class ReorderInfo_SourceInfoDefaultTypeInternal;
+extern ReorderInfo_SourceInfoDefaultTypeInternal _ReorderInfo_SourceInfo_default_instance_;
 }  // namespace ShuffleInfo
 
 namespace ShuffleInfo {
@@ -149,6 +152,13 @@ class ReorderInfo_BinaryInfo : public ::google::protobuf::Message /* @@protoc_in
   ::google::protobuf::uint32 obj_sz() const;
   void set_obj_sz(::google::protobuf::uint32 value);
 
+  // optional uint32 src_type = 4;
+  bool has_src_type() const;
+  void clear_src_type();
+  static const int kSrcTypeFieldNumber = 4;
+  ::google::protobuf::uint32 src_type() const;
+  void set_src_type(::google::protobuf::uint32 value);
+
   // @@protoc_insertion_point(class_scope:ShuffleInfo.ReorderInfo.BinaryInfo)
  private:
   void set_has_rand_obj_offset();
@@ -157,6 +167,8 @@ class ReorderInfo_BinaryInfo : public ::google::protobuf::Message /* @@protoc_in
   void clear_has_main_addr_offset();
   void set_has_obj_sz();
   void clear_has_obj_sz();
+  void set_has_src_type();
+  void clear_has_src_type();
 
   ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
   ::google::protobuf::internal::HasBits<1> _has_bits_;
@@ -164,6 +176,7 @@ class ReorderInfo_BinaryInfo : public ::google::protobuf::Message /* @@protoc_in
   ::google::protobuf::uint32 rand_obj_offset_;
   ::google::protobuf::uint32 main_addr_offset_;
   ::google::protobuf::uint32 obj_sz_;
+  ::google::protobuf::uint32 src_type_;
   friend void  protobuf_InitDefaults_shuffleInfo_2eproto_impl();
   friend void  protobuf_AddDesc_shuffleInfo_2eproto_impl();
   friend const ::google::protobuf::uint32* protobuf_Offsets_shuffleInfo_2eproto();
@@ -642,6 +655,107 @@ class ReorderInfo_FixupInfo : public ::google::protobuf::Message /* @@protoc_ins
 };
 // -------------------------------------------------------------------
 
+class ReorderInfo_SourceInfo : public ::google::protobuf::Message /* @@protoc_insertion_point(class_definition:ShuffleInfo.ReorderInfo.SourceInfo) */ {
+ public:
+  ReorderInfo_SourceInfo();
+  virtual ~ReorderInfo_SourceInfo();
+
+  ReorderInfo_SourceInfo(const ReorderInfo_SourceInfo& from);
+
+  inline ReorderInfo_SourceInfo& operator=(const ReorderInfo_SourceInfo& from) {
+    CopyFrom(from);
+    return *this;
+  }
+
+  inline const ::google::protobuf::UnknownFieldSet& unknown_fields() const {
+    return _internal_metadata_.unknown_fields();
+  }
+
+  inline ::google::protobuf::UnknownFieldSet* mutable_unknown_fields() {
+    return _internal_metadata_.mutable_unknown_fields();
+  }
+
+  static const ::google::protobuf::Descriptor* descriptor();
+  static const ReorderInfo_SourceInfo& default_instance();
+
+  static inline const ReorderInfo_SourceInfo* internal_default_instance() {
+    return reinterpret_cast<const ReorderInfo_SourceInfo*>(
+               &_ReorderInfo_SourceInfo_default_instance_);
+  }
+
+  void Swap(ReorderInfo_SourceInfo* other);
+
+  // implements Message ----------------------------------------------
+
+  inline ReorderInfo_SourceInfo* New() const PROTOBUF_FINAL { return New(NULL); }
+
+  ReorderInfo_SourceInfo* New(::google::protobuf::Arena* arena) const PROTOBUF_FINAL;
+  void CopyFrom(const ::google::protobuf::Message& from) PROTOBUF_FINAL;
+  void MergeFrom(const ::google::protobuf::Message& from) PROTOBUF_FINAL;
+  void CopyFrom(const ReorderInfo_SourceInfo& from);
+  void MergeFrom(const ReorderInfo_SourceInfo& from);
+  void Clear() PROTOBUF_FINAL;
+  bool IsInitialized() const PROTOBUF_FINAL;
+
+  size_t ByteSizeLong() const PROTOBUF_FINAL;
+  bool MergePartialFromCodedStream(
+      ::google::protobuf::io::CodedInputStream* input) PROTOBUF_FINAL;
+  void SerializeWithCachedSizes(
+      ::google::protobuf::io::CodedOutputStream* output) const PROTOBUF_FINAL;
+  ::google::protobuf::uint8* InternalSerializeWithCachedSizesToArray(
+      bool deterministic, ::google::protobuf::uint8* target) const PROTOBUF_FINAL;
+  ::google::protobuf::uint8* SerializeWithCachedSizesToArray(::google::protobuf::uint8* output)
+      const PROTOBUF_FINAL {
+    return InternalSerializeWithCachedSizesToArray(false, output);
+  }
+  int GetCachedSize() const PROTOBUF_FINAL { return _cached_size_; }
+  private:
+  void SharedCtor();
+  void SharedDtor();
+  void SetCachedSize(int size) const PROTOBUF_FINAL;
+  void InternalSwap(ReorderInfo_SourceInfo* other);
+  private:
+  inline ::google::protobuf::Arena* GetArenaNoVirtual() const {
+    return NULL;
+  }
+  inline void* MaybeArenaPtr() const {
+    return NULL;
+  }
+  public:
+
+  ::google::protobuf::Metadata GetMetadata() const PROTOBUF_FINAL;
+
+  // nested types ----------------------------------------------------
+
+  // accessors -------------------------------------------------------
+
+  // repeated uint32 src_type = 1;
+  int src_type_size() const;
+  void clear_src_type();
+  static const int kSrcTypeFieldNumber = 1;
+  ::google::protobuf::uint32 src_type(int index) const;
+  void set_src_type(int index, ::google::protobuf::uint32 value);
+  void add_src_type(::google::protobuf::uint32 value);
+  const ::google::protobuf::RepeatedField< ::google::protobuf::uint32 >&
+      src_type() const;
+  ::google::protobuf::RepeatedField< ::google::protobuf::uint32 >*
+      mutable_src_type();
+
+  // @@protoc_insertion_point(class_scope:ShuffleInfo.ReorderInfo.SourceInfo)
+ private:
+
+  ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
+  ::google::protobuf::internal::HasBits<1> _has_bits_;
+  mutable int _cached_size_;
+  ::google::protobuf::RepeatedField< ::google::protobuf::uint32 > src_type_;
+  friend void  protobuf_InitDefaults_shuffleInfo_2eproto_impl();
+  friend void  protobuf_AddDesc_shuffleInfo_2eproto_impl();
+  friend const ::google::protobuf::uint32* protobuf_Offsets_shuffleInfo_2eproto();
+  friend void protobuf_ShutdownFile_shuffleInfo_2eproto();
+
+};
+// -------------------------------------------------------------------
+
 class ReorderInfo : public ::google::protobuf::Message /* @@protoc_insertion_point(class_definition:ShuffleInfo.ReorderInfo) */ {
  public:
   ReorderInfo();
@@ -717,6 +831,7 @@ class ReorderInfo : public ::google::protobuf::Message /* @@protoc_insertion_poi
   typedef ReorderInfo_BinaryInfo BinaryInfo;
   typedef ReorderInfo_LayoutInfo LayoutInfo;
   typedef ReorderInfo_FixupInfo FixupInfo;
+  typedef ReorderInfo_SourceInfo SourceInfo;
 
   // accessors -------------------------------------------------------
 
@@ -753,10 +868,21 @@ class ReorderInfo : public ::google::protobuf::Message /* @@protoc_insertion_poi
   const ::google::protobuf::RepeatedPtrField< ::ShuffleInfo::ReorderInfo_FixupInfo >&
       fixup() const;
 
+  // optional .ShuffleInfo.ReorderInfo.SourceInfo source = 4;
+  bool has_source() const;
+  void clear_source();
+  static const int kSourceFieldNumber = 4;
+  const ::ShuffleInfo::ReorderInfo_SourceInfo& source() const;
+  ::ShuffleInfo::ReorderInfo_SourceInfo* mutable_source();
+  ::ShuffleInfo::ReorderInfo_SourceInfo* release_source();
+  void set_allocated_source(::ShuffleInfo::ReorderInfo_SourceInfo* source);
+
   // @@protoc_insertion_point(class_scope:ShuffleInfo.ReorderInfo)
  private:
   void set_has_bin();
   void clear_has_bin();
+  void set_has_source();
+  void clear_has_source();
 
   ::google::protobuf::internal::InternalMetadataWithArena _internal_metadata_;
   ::google::protobuf::internal::HasBits<1> _has_bits_;
@@ -764,6 +890,7 @@ class ReorderInfo : public ::google::protobuf::Message /* @@protoc_insertion_poi
   ::google::protobuf::RepeatedPtrField< ::ShuffleInfo::ReorderInfo_LayoutInfo > layout_;
   ::google::protobuf::RepeatedPtrField< ::ShuffleInfo::ReorderInfo_FixupInfo > fixup_;
   ::ShuffleInfo::ReorderInfo_BinaryInfo* bin_;
+  ::ShuffleInfo::ReorderInfo_SourceInfo* source_;
   friend void  protobuf_InitDefaults_shuffleInfo_2eproto_impl();
   friend void  protobuf_AddDesc_shuffleInfo_2eproto_impl();
   friend const ::google::protobuf::uint32* protobuf_Offsets_shuffleInfo_2eproto();
@@ -848,6 +975,30 @@ inline void ReorderInfo_BinaryInfo::set_obj_sz(::google::protobuf::uint32 value)
   set_has_obj_sz();
   obj_sz_ = value;
   // @@protoc_insertion_point(field_set:ShuffleInfo.ReorderInfo.BinaryInfo.obj_sz)
+}
+
+// optional uint32 src_type = 4;
+inline bool ReorderInfo_BinaryInfo::has_src_type() const {
+  return (_has_bits_[0] & 0x00000008u) != 0;
+}
+inline void ReorderInfo_BinaryInfo::set_has_src_type() {
+  _has_bits_[0] |= 0x00000008u;
+}
+inline void ReorderInfo_BinaryInfo::clear_has_src_type() {
+  _has_bits_[0] &= ~0x00000008u;
+}
+inline void ReorderInfo_BinaryInfo::clear_src_type() {
+  src_type_ = 0u;
+  clear_has_src_type();
+}
+inline ::google::protobuf::uint32 ReorderInfo_BinaryInfo::src_type() const {
+  // @@protoc_insertion_point(field_get:ShuffleInfo.ReorderInfo.BinaryInfo.src_type)
+  return src_type_;
+}
+inline void ReorderInfo_BinaryInfo::set_src_type(::google::protobuf::uint32 value) {
+  set_has_src_type();
+  src_type_ = value;
+  // @@protoc_insertion_point(field_set:ShuffleInfo.ReorderInfo.BinaryInfo.src_type)
 }
 
 // -------------------------------------------------------------------
@@ -1378,6 +1529,40 @@ ReorderInfo_FixupInfo::initarray() const {
 
 // -------------------------------------------------------------------
 
+// ReorderInfo_SourceInfo
+
+// repeated uint32 src_type = 1;
+inline int ReorderInfo_SourceInfo::src_type_size() const {
+  return src_type_.size();
+}
+inline void ReorderInfo_SourceInfo::clear_src_type() {
+  src_type_.Clear();
+}
+inline ::google::protobuf::uint32 ReorderInfo_SourceInfo::src_type(int index) const {
+  // @@protoc_insertion_point(field_get:ShuffleInfo.ReorderInfo.SourceInfo.src_type)
+  return src_type_.Get(index);
+}
+inline void ReorderInfo_SourceInfo::set_src_type(int index, ::google::protobuf::uint32 value) {
+  src_type_.Set(index, value);
+  // @@protoc_insertion_point(field_set:ShuffleInfo.ReorderInfo.SourceInfo.src_type)
+}
+inline void ReorderInfo_SourceInfo::add_src_type(::google::protobuf::uint32 value) {
+  src_type_.Add(value);
+  // @@protoc_insertion_point(field_add:ShuffleInfo.ReorderInfo.SourceInfo.src_type)
+}
+inline const ::google::protobuf::RepeatedField< ::google::protobuf::uint32 >&
+ReorderInfo_SourceInfo::src_type() const {
+  // @@protoc_insertion_point(field_list:ShuffleInfo.ReorderInfo.SourceInfo.src_type)
+  return src_type_;
+}
+inline ::google::protobuf::RepeatedField< ::google::protobuf::uint32 >*
+ReorderInfo_SourceInfo::mutable_src_type() {
+  // @@protoc_insertion_point(field_mutable_list:ShuffleInfo.ReorderInfo.SourceInfo.src_type)
+  return &src_type_;
+}
+
+// -------------------------------------------------------------------
+
 // ReorderInfo
 
 // optional .ShuffleInfo.ReorderInfo.BinaryInfo bin = 1;
@@ -1485,7 +1670,54 @@ ReorderInfo::fixup() const {
   return fixup_;
 }
 
+// optional .ShuffleInfo.ReorderInfo.SourceInfo source = 4;
+inline bool ReorderInfo::has_source() const {
+  return (_has_bits_[0] & 0x00000002u) != 0;
+}
+inline void ReorderInfo::set_has_source() {
+  _has_bits_[0] |= 0x00000002u;
+}
+inline void ReorderInfo::clear_has_source() {
+  _has_bits_[0] &= ~0x00000002u;
+}
+inline void ReorderInfo::clear_source() {
+  if (source_ != NULL) source_->::ShuffleInfo::ReorderInfo_SourceInfo::Clear();
+  clear_has_source();
+}
+inline const ::ShuffleInfo::ReorderInfo_SourceInfo& ReorderInfo::source() const {
+  // @@protoc_insertion_point(field_get:ShuffleInfo.ReorderInfo.source)
+  return source_ != NULL ? *source_
+                         : *::ShuffleInfo::ReorderInfo_SourceInfo::internal_default_instance();
+}
+inline ::ShuffleInfo::ReorderInfo_SourceInfo* ReorderInfo::mutable_source() {
+  set_has_source();
+  if (source_ == NULL) {
+    source_ = new ::ShuffleInfo::ReorderInfo_SourceInfo;
+  }
+  // @@protoc_insertion_point(field_mutable:ShuffleInfo.ReorderInfo.source)
+  return source_;
+}
+inline ::ShuffleInfo::ReorderInfo_SourceInfo* ReorderInfo::release_source() {
+  // @@protoc_insertion_point(field_release:ShuffleInfo.ReorderInfo.source)
+  clear_has_source();
+  ::ShuffleInfo::ReorderInfo_SourceInfo* temp = source_;
+  source_ = NULL;
+  return temp;
+}
+inline void ReorderInfo::set_allocated_source(::ShuffleInfo::ReorderInfo_SourceInfo* source) {
+  delete source_;
+  source_ = source;
+  if (source) {
+    set_has_source();
+  } else {
+    clear_has_source();
+  }
+  // @@protoc_insertion_point(field_set_allocated:ShuffleInfo.ReorderInfo.source)
+}
+
 #endif  // !PROTOBUF_INLINE_NOT_IN_HEADERS
+// -------------------------------------------------------------------
+
 // -------------------------------------------------------------------
 
 // -------------------------------------------------------------------
