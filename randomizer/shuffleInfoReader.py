@@ -113,6 +113,30 @@ def deserializeInfo(ri):
             oid += 1
             osz, fn_ctr = 0, 0
 
+    # [FIXME] Ugly, but just a workaround
+    # Function information is somehow disappeared from LTO...
+    # In case of LTO, objLayout and obj_sz need to be adjusted
+    if len([bblLayout[x].type for x in range(len(bblLayout)) if bblLayout[x].type == 1]) == 0:
+        assert (len(objLayout) == len(obj_sz))
+        idxes = list()
+        for i in range(len(objLayout)):
+            if objLayout[i] > 1:
+                idxes.append(i)
+
+        adjustedLayout = list()
+        adjustedSz = list()
+        start = 0
+        for j in idxes:
+            adjustedLayout.append(sum(objLayout[start:j]))
+            adjustedLayout.append(objLayout[j])
+            adjustedSz.append(sum(obj_sz[start:j]))
+            adjustedSz.append(obj_sz[j])
+            start = j + 1
+
+        adjustedLayout.append(sum(objLayout[start:]))
+        adjustedSz.append(sum(obj_sz[start:]))
+        objLayout, obj_sz = adjustedLayout, adjustedSz
+
     '''
     BinaryInfo has been defined as following in shuffleInfo.proto
       message BinaryInfo {
