@@ -45,6 +45,9 @@
 #include "llvm/MC/MCSymbol.h"
 #include "llvm/MC/MCSymbolELF.h"
 
+// Koo
+#include <string>
+
 using namespace llvm;
 
 namespace {
@@ -1760,6 +1763,7 @@ void X86AsmPrinter::EmitInstruction(const MachineInstr *MI) {
       SrcIdx = 3; MaskIdx = 7; ElSize = 64; break;
     }
 
+
     assert(MI->getNumOperands() >= 6 &&
            "We should always have at least 6 operands!");
 
@@ -2010,6 +2014,22 @@ void X86AsmPrinter::EmitInstruction(const MachineInstr *MI) {
 
   MCInst TmpInst;
   MCInstLowering.Lower(MI, TmpInst);
+  
+  // Koo [Note] While converting MachineInstr into MCInst, it is essential to maintain
+  //            its parent MF and MBB because MCStreamer and MCAssembler do not care 
+  //            them any more semantically. After this phase, fragment and section govern.
+  const MachineBasicBlock *MBB = MI->getParent();
+  unsigned MBBID = MBB->getNumber();
+  unsigned MFID = MBB->getParent()->getFunctionNumber();
+  std::string ID = std::to_string(MFID) + "_" + std::to_string(MBBID);
+  TmpInst.setParent(ID);
+    
+  // Koo [Note] Simple hack: both MF and MAI can be accessible, thus update fallThrough here.
+  const MCAsmInfo *MAI = getMCAsmInfo();
+  if (MAI->canMBBFallThrough.count(ID) == 0)
+     MAI->canMBBFallThrough[ID] = MF->canMBBFallThrough[ID];
+  MAI->latestParentID = ID;
+  
   if (MI->getAsmPrinterFlag(MachineInstr::NoSchedComment))
     TmpInst.setFlags(TmpInst.getFlags() | X86::NO_SCHED_INFO);
 

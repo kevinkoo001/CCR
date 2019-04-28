@@ -22,6 +22,10 @@
 #include <cstdint>
 #include <utility>
 
+// Koo
+#include <string> 
+#include <list>
+
 namespace llvm {
 
 class MCSection;
@@ -81,12 +85,15 @@ private:
   uint64_t Offset;
 
   /// @}
+  // Koo
+  std::list<std::string> MBBIDs;
 
 protected:
   MCFragment(FragmentType Kind, bool HasInstructions,
              uint8_t BundlePadding, MCSection *Parent = nullptr);
 
   ~MCFragment();
+
 
 public:
   MCFragment() = delete;
@@ -132,6 +139,16 @@ public:
   /// \brief Return true if given frgment has FT_Dummy type.
   bool isDummy() const { return Kind == FT_Dummy; }
 
+  // Koo
+  uint64_t getOffset() { return Offset; }
+  const std::list<std::string> getAllMBBs() const {return MBBIDs; }
+  void addMachineBasicBlockTag(std::string T) { 
+    for (auto it=MBBIDs.begin(); it!=MBBIDs.end(); ++it)
+      if (T.compare(*it) == 0)
+        return;
+    MBBIDs.push_back(T); 
+  }
+  
   void dump() const;
 };
 
@@ -224,9 +241,16 @@ public:
 /// Fragment for data and encoded instructions.
 ///
 class MCDataFragment : public MCEncodedFragmentWithFixups<32, 4> {
+protected:
+  std::string ParentID;
+  
 public:
   MCDataFragment(MCSection *Sec = nullptr)
       : MCEncodedFragmentWithFixups<32, 4>(FT_Data, false, Sec) {}
+      
+  // Koo: Check out the last parentID in MCAssembler
+  void setLastParentTag(std::string P) { ParentID = P; }
+  const std::string getLastParentTag() const { return ParentID; }
 
   void setHasInstructions(bool V) { HasInstructions = V; }
 
@@ -261,6 +285,11 @@ class MCRelaxableFragment : public MCEncodedFragmentWithFixups<8, 1> {
 
   /// STI - The MCSubtargetInfo in effect when the instruction was encoded.
   const MCSubtargetInfo &STI;
+  
+  // Koo - The alreadyRelaxedBytes and fixupCtr contain the current relaxed info.
+  //       These values can be re-evaluated
+  unsigned alreadyRelaxedBytes = 0;
+  unsigned fixupCtr = 0;
 
 public:
   MCRelaxableFragment(const MCInst &Inst, const MCSubtargetInfo &STI,
@@ -272,6 +301,12 @@ public:
   void setInst(const MCInst &Value) { Inst = Value; }
 
   const MCSubtargetInfo &getSubtargetInfo() { return STI; }
+  
+  // Koo
+  unsigned getRelaxedBytes() { return alreadyRelaxedBytes; }
+  void setRelaxedBytes(unsigned RB) { alreadyRelaxedBytes = RB; }
+  unsigned getFixup() { return fixupCtr; }
+  void setFixup(unsigned F) { fixupCtr = F; }
 
   static bool classof(const MCFragment *F) {
     return F->getKind() == MCFragment::FT_Relaxable;

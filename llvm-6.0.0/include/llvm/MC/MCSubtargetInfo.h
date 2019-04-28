@@ -52,6 +52,12 @@ class MCSubtargetInfo {
   const unsigned *ForwardingPaths;     // Forwarding paths
   FeatureBitset FeatureBits;           // Feature bits for current CPU + FS
 
+  //Koo
+  mutable unsigned byteCtr = 0;
+  mutable unsigned fixupCtr = 0;
+  // inline disassembly: updated at EmitInlineAsm() in AsmPrinterInlineAsm.cpp
+  // full disassembly: AsmParser.cpp
+  mutable std::string parentID; 
 public:
   MCSubtargetInfo(const MCSubtargetInfo &) = default;
   MCSubtargetInfo(const Triple &TT, StringRef CPU, StringRef FS,
@@ -167,6 +173,14 @@ public:
     return 0;
   }
 
+  // Koo: Hold actual size of the target MCInst in bytes and its parentID (MFID_MBBID)
+  void setByteCtr(unsigned Bytes) const { byteCtr = Bytes; }
+  unsigned getByteCtr() const { return byteCtr; }
+  void setFixupCounter(unsigned numFixups) const { fixupCtr = numFixups; }
+  unsigned getFixupCtr() const { return fixupCtr; }
+  void setParentID(std::string parent) const { parentID = parent; }
+  std::string getParentID() const { return parentID; }
+  
   /// getInstrItineraryForCPU - Get scheduling itinerary of a CPU.
   ///
   InstrItineraryData getInstrItineraryForCPU(StringRef CPU) const;

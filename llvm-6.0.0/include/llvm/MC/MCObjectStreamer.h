@@ -97,6 +97,11 @@ public:
   /// @{
 
   void EmitLabel(MCSymbol *Symbol, SMLoc Loc = SMLoc()) override;
+  
+  // Koo
+  void EmitRand() override;
+  void setObjTmpName(std::string tmpFileName) override;
+  
   virtual void EmitLabel(MCSymbol *Symbol, SMLoc Loc, MCFragment *F);
   void EmitAssignment(MCSymbol *Symbol, const MCExpr *Value) override;
   void EmitValueImpl(const MCExpr *Value, unsigned Size,

@@ -56,6 +56,9 @@ public:
   /// Record .symver aliases for later processing.
   void emitELFSymverDirective(MCSymbol *Alias,
                               const MCSymbol *Aliasee) override;
+                              
+  void setObjTmpName(std::string tmpFileName) override {} // Koo
+  
   /// Return the map of .symver aliasee to associated aliases.
   DenseMap<const MCSymbol *, std::vector<MCSymbol *>> &symverAliases() {
     return SymverAliasMap;

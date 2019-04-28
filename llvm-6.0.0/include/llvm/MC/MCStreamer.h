@@ -184,6 +184,7 @@ class MCStreamer {
   std::vector<MCDwarfFrameInfo> DwarfFrameInfos;
   MCDwarfFrameInfo *getCurrentDwarfFrameInfo();
 
+
   /// Similar to DwarfFrameInfos, but for SEH unwind info. Chained frames may
   /// refer to each other, so use std::unique_ptr to provide pointer stability.
   std::vector<std::unique_ptr<WinEH::FrameInfo>> WinFrameInfos;
@@ -419,6 +420,10 @@ public:
   // FIXME: These emission are non-const because we mutate the symbol to
   // add the section we're emitting it to later.
   virtual void EmitLabel(MCSymbol *Symbol, SMLoc Loc = SMLoc());
+  
+  // Koo
+  virtual void EmitRand() {}
+  virtual void setObjTmpName(std::string tmpFileName) {}
 
   virtual void EmitEHSymAttributes(const MCSymbol *Symbol, MCSymbol *EHSymbol);
 

@@ -72,6 +72,12 @@
 #include <utility>
 #include <vector>
 
+//Koo
+#include "llvm/MC/MCObjectFileInfo.h"
+#include <map> 
+#include <tuple>
+#include <string>
+
 using namespace llvm;
 
 #define DEBUG_TYPE "codegen"
@@ -286,6 +292,40 @@ void MachineFunction::RenumberBlocks(MachineBasicBlock *MBB) {
   // numbering, shrink MBBNumbering now.
   assert(BlockNo <= MBBNumbering.size() && "Mismatch!");
   MBBNumbering.resize(BlockNo);
+}
+
+// Koo - As optimization goes, MJTI might keep being updated from the followings
+//        a) MachineFunctionPass::SelectionDAGISel::X86DAGToDAGISel::runOnMachineFunction() 
+//        b) MachineFunctionPass::BranchFolderPass::runOnMachineFunction() 
+void MachineFunction::RecordMachineJumpTableInfo(MachineJumpTableInfo *MJTI) {
+  const std::vector<MachineJumpTableEntry> &JT = MJTI->getJumpTables();
+  
+  if (!JT.empty()) {
+    const MachineModuleInfo &MMI = this->getMMI();
+    const MCObjectFileInfo* MOFI = MMI.getMCObjectFileInfo();
+    
+    if (!MOFI) return;
+        
+    // Walk through all Jump Tables in this Machine Function
+    for (unsigned JTI = 0, e = JT.size(); JTI != e; ++JTI) {
+      const std::vector<MachineBasicBlock*> &JTBBs = JT[JTI].MBBs;
+      unsigned MFID = this->getFunctionNumber();
+      
+      // Key: <MachineFunctionIdx_JumpTableIdx>
+      std::string MJTKey = std::to_string(MFID) + "_" + std::to_string(JTI); 
+      std::list<std::string> JTEntries;
+      // Walk through all Jump Table Entries (MBBs) to get targets
+      for (unsigned ii = 0, ee = JTBBs.size(); ii != ee; ++ii) {
+        unsigned MBBID = JTBBs[ii]->getNumber();
+        JTEntries.push_back(std::to_string(MFID) + "_" + std::to_string(MBBID));
+      }
+    
+      // Value: <(EntryKind, EntrySize, Entries[MFID_MBBID])>
+      unsigned EntryKind = MJTI->getEntryKind();
+      unsigned EntrySize = MJTI->getEntrySize(this->getDataLayout());
+      MOFI->updateJumpTableTargets(MJTKey, EntryKind, EntrySize, JTEntries);
+    }
+  }
 }
 
 /// Allocate a new MachineInstr. Use this instead of `new MachineInstr'.

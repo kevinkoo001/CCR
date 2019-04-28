@@ -90,6 +90,8 @@ public:
   unsigned getPointerSize() const { return 8; }
 
   unsigned getFixupKindContainereSizeInBytes(unsigned Kind) const;
+  
+  unsigned getFixupKindLog2Size(unsigned Kind) const override { return 0; } // Koo [N/A Here]
 
   bool shouldForceRelocation(const MCAssembler &Asm, const MCFixup &Fixup,
                              const MCValue &Target) override;

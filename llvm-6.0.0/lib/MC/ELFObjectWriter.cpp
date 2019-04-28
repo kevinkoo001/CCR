@@ -1022,6 +1022,12 @@ void ELFObjectWriter::writeSectionData(const MCAssembler &Asm, MCSection &Sec,
   MCSectionELF &Section = static_cast<MCSectionELF &>(Sec);
   StringRef SectionName = Section.getSectionName();
 
+  // Koo: process the special section (.rand) to store the information for transformation
+  if (SectionName.startswith(".rand")) {
+    Asm.WriteRandInfo(Layout);
+    return;
+  }
+  
   auto &MC = Asm.getContext();
   const auto &MAI = MC.getAsmInfo();
 

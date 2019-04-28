@@ -42,6 +42,11 @@ public:
   void ChangeSection(MCSection *Section, const MCExpr *Subsection) override;
   void EmitLabel(MCSymbol *Symbol, SMLoc Loc = SMLoc()) override;
   void EmitLabel(MCSymbol *Symbol, SMLoc Loc, MCFragment *F) override;
+  
+  // Koo
+  void EmitRand() override;
+  void setObjTmpName(std::string tmpFileName) override;
+  
   void EmitAssemblerFlag(MCAssemblerFlag Flag) override;
   void EmitThumbFunc(MCSymbol *Func) override;
   void EmitWeakReference(MCSymbol *Alias, const MCSymbol *Symbol) override;

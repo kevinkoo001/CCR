@@ -1631,6 +1631,7 @@ X86AsmParser::ParseRoundingModeOp(SMLoc Start, SMLoc End) {
   return ErrorOperand(Tok.getLoc(), "unknown token in expression");
 }
 
+
 /// Parse the '.' operator.
 bool X86AsmParser::ParseIntelDotOperator(IntelExprStateMachine &SM, SMLoc &End) {
   const AsmToken &Tok = getTok();
@@ -1782,6 +1783,7 @@ std::unique_ptr<X86Operand> X86AsmParser::ParseIntelOperand() {
   if (isParsingInlineAsm())
     if (IdentifyIntelInlineAsmOperator(Tok.getString()) == IOK_OFFSET)
       return ParseIntelOffsetOfOperator();
+
 
   // Parse optional Size directive.
   unsigned Size;
@@ -2804,6 +2806,9 @@ bool X86AsmParser::MatchAndEmitATTInstruction(SMLoc IDLoc, unsigned &Opcode,
 
   MCInst Inst;
 
+  // Koo: Set parentID for both inline and full assembly here.
+  Inst.setParent(getSTI().getParentID());
+  
   if (Prefixes)
     Inst.setFlags(Prefixes);
 
@@ -2979,6 +2984,9 @@ bool X86AsmParser::MatchAndEmitIntelInstruction(SMLoc IDLoc, unsigned &Opcode,
   MatchFPUWaitAlias(IDLoc, Op, Operands, Out, MatchingInlineAsm);
 
   MCInst Inst;
+
+  // Koo: Set parentID for both inline and full assembly here.
+  Inst.setParent(getSTI().getParentID());
 
   if (Prefixes)
     Inst.setFlags(Prefixes);

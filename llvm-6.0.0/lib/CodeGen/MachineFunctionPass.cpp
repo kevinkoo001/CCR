@@ -28,6 +28,8 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 
+#include <string> // Koo
+
 using namespace llvm;
 
 Pass *MachineFunctionPass::createPrinterPass(raw_ostream &O,
@@ -60,6 +62,14 @@ bool MachineFunctionPass::runOnFunction(Function &F) {
 #endif
 
   bool RV = runOnMachineFunction(MF);
+  
+  // Koo: collect the canFallThrough info per each MBB here
+  for (MachineFunction::iterator I = MF.begin(), E = MF.end(); I != E; ++I) {
+    MachineBasicBlock *MBB = &*I;
+    std::string ID = std::to_string(MBB->getParent()->getFunctionNumber()) + "_" + \
+                     std::to_string(MBB->getNumber());
+    MF.canMBBFallThrough[ID] = MBB->canFallThrough();
+  }
 
   MFProps.set(SetProperties);
   MFProps.reset(ClearedProperties);

@@ -26,36 +26,7 @@
 #include "llvm/Support/raw_ostream.h"
 using namespace llvm;
 
-static unsigned getFixupKindLog2Size(unsigned Kind) {
-  switch (Kind) {
-  default:
-    llvm_unreachable("invalid fixup kind!");
-  case FK_PCRel_1:
-  case FK_SecRel_1:
-  case FK_Data_1:
-    return 0;
-  case FK_PCRel_2:
-  case FK_SecRel_2:
-  case FK_Data_2:
-    return 1;
-  case FK_PCRel_4:
-  case X86::reloc_riprel_4byte:
-  case X86::reloc_riprel_4byte_relax:
-  case X86::reloc_riprel_4byte_relax_rex:
-  case X86::reloc_riprel_4byte_movq_load:
-  case X86::reloc_signed_4byte:
-  case X86::reloc_signed_4byte_relax:
-  case X86::reloc_global_offset_table:
-  case FK_SecRel_4:
-  case FK_Data_4:
-    return 2;
-  case FK_PCRel_8:
-  case FK_SecRel_8:
-  case FK_Data_8:
-  case X86::reloc_global_offset_table8:
-    return 3;
-  }
-}
+
 
 namespace {
 
@@ -105,6 +76,38 @@ public:
     return Infos[Kind - FirstTargetFixupKind];
   }
 
+  // Koo: Moved to MCAsmBackend() class inside so that it can be called in MCAssembler class
+  unsigned getFixupKindLog2Size(unsigned Kind) const override {
+    switch (Kind) {
+    default:
+      llvm_unreachable("invalid fixup kind!");
+    case FK_PCRel_1:
+    case FK_SecRel_1:
+    case FK_Data_1:
+      return 0;
+    case FK_PCRel_2:
+    case FK_SecRel_2:
+    case FK_Data_2:
+      return 1;
+    case FK_PCRel_4:
+    case X86::reloc_riprel_4byte:
+    case X86::reloc_riprel_4byte_relax:
+    case X86::reloc_riprel_4byte_relax_rex:
+    case X86::reloc_riprel_4byte_movq_load:
+    case X86::reloc_signed_4byte:
+    case X86::reloc_signed_4byte_relax:
+    case X86::reloc_global_offset_table:
+    case FK_SecRel_4:
+    case FK_Data_4:
+      return 2;
+    case FK_PCRel_8:
+    case FK_SecRel_8:
+    case FK_Data_8:
+    case X86::reloc_global_offset_table8:
+      return 3;
+    }
+  }
+  
   void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
                   const MCValue &Target, MutableArrayRef<char> Data,
                   uint64_t Value, bool IsResolved) const override {

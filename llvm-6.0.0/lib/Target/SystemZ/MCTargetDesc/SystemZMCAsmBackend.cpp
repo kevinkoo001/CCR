@@ -67,6 +67,9 @@ public:
     llvm_unreachable("SystemZ does do not have assembler relaxation");
   }
   bool writeNopData(uint64_t Count, MCObjectWriter *OW) const override;
+  
+  unsigned getFixupKindLog2Size(unsigned Kind) const override { return 0; } // Koo [N/A Here]
+  
   std::unique_ptr<MCObjectWriter>
   createObjectWriter(raw_pwrite_stream &OS) const override {
     return createSystemZObjectWriter(OS, OSABI);

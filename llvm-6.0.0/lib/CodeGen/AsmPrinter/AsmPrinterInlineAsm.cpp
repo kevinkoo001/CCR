@@ -38,6 +38,10 @@
 #include "llvm/Target/TargetMachine.h"
 using namespace llvm;
 
+// Koo
+#include <string>
+#include <tuple>
+
 #define DEBUG_TYPE "asm-printer"
 
 /// srcMgrDiagHandler - This callback is invoked when the SourceMgr for an
@@ -73,7 +77,7 @@ static void srcMgrDiagHandler(const SMDiagnostic &Diag, void *diagInfo) {
 
 /// EmitInlineAsm - Emit a blob of inline asm to the output streamer.
 void AsmPrinter::EmitInlineAsm(StringRef Str, const MCSubtargetInfo &STI,
-                               const MCTargetOptions &MCOptions,
+                               const MCTargetOptions &MCOptions, std::string parentID, // Koo
                                const MDNode *LocMDNode,
                                InlineAsm::AsmDialect Dialect) const {
   assert(!Str.empty() && "Can't emit empty inline asm block");
@@ -155,6 +159,12 @@ void AsmPrinter::EmitInlineAsm(StringRef Str, const MCSubtargetInfo &STI,
 
   emitInlineAsmStart();
   // Don't implicitly switch to the text section before the asm.
+
+  // Koo [Note] Here sets # of byteCtr/fixupCtr in STI (MCSubtargetInfo) and
+  //            sets ParentID in MCInst (MatchAndEmitATTInstruction and MatchAndEmitIntelInstruction)
+  //            Make sure TAP's getSTI() should be updated before entering Parser->Run()!
+  (&TAP->getSTI())->setParentID(parentID);
+  MCAI->hasInlineAssembly = true;
   int Res = Parser->Run(/*NoInitialTextSection*/ true,
                         /*NoFinalize*/ true);
   emitInlineAsmEnd(STI, &TAP->getSTI());
@@ -516,9 +526,30 @@ void AsmPrinter::EmitInlineAsm(const MachineInstr *MI) const {
   MCOptions.SanitizeAddress =
       MF->getFunction().hasFnAttribute(Attribute::SanitizeAddress);
 
-  EmitInlineAsm(OS.str(), getSubtargetInfo(), MCOptions, LocMD,
+  // Koo [Note] This function does X86AsmPrinter::EmitInstruction() for inline assembly!
+  //            Let's apply the same logic for inline assembly as well
+  const MachineBasicBlock *MBB = MI->getParent();
+  unsigned MBBID = MBB->getNumber();
+  unsigned MFID = MBB->getParent()->getFunctionNumber();
+  std::string parentID = std::to_string(MFID) + "_" + std::to_string(MBBID);
+  if (parentID.length() == 0)
+    parentID = MAI->latestParentID;
+
+  // Koo [Note]
+  // The parentID tag will be stored in MatchAndEmitATTInstruction() and MatchAndEmitIntelInstruction()
+  //   at X86AsmParser class (derived by MCTargetAsmParser) that converts MachineInstr with MCInst.
+  // This step is only for inline assembly, should be done through MCLowering() process otherwise.
+
+  EmitInlineAsm(OS.str(), getSubtargetInfo(), MCOptions, parentID, LocMD,
                 MI->getInlineAsmDialect());
 
+  MAI->updateByteCounter(parentID, getSubtargetInfo().getByteCtr(), /*numFixups=*/ 0, \
+                          /*isAlign=*/ false, /*isInline=*/ true);
+
+  // Koo [Note] Simple hack: both MF and MAI can be accessible, thus update fallThrough here.
+  if (MAI->canMBBFallThrough.count(parentID) == 0)
+     MAI->canMBBFallThrough[parentID] = MF->canMBBFallThrough[parentID];
+ 
   // Emit the #NOAPP end marker.  This has to happen even if verbose-asm isn't
   // enabled, so we use emitRawComment.
   OutStreamer->emitRawComment(MAI->getInlineAsmEnd());

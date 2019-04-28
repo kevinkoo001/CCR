@@ -186,6 +186,7 @@ private:
                                   ///< Format: (arch)(sub)-(vendor)-(sys0-(abi)
   void *NamedMDSymTab;            ///< NamedMDNode names.
   DataLayout DL;                  ///< DataLayout associated with the module
+  std::string tmpObjFile;         // Koo
 
   friend class Constant;
 
@@ -218,6 +219,10 @@ public:
   /// This is useful for debugging or logging. It is essentially a convenience
   /// wrapper around getModuleIdentifier().
   StringRef getName() const { return ModuleID; }
+  
+  // Koo
+  std::string getTmpObjFile() { return tmpObjFile; }
+  void setTmpObjFile(std::string objFile) { tmpObjFile = objFile; }
 
   /// Get the data layout string for the module's target platform. This is
   /// equivalent to getDataLayout()->getStringRepresentation().

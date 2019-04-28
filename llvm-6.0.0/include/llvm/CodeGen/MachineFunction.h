@@ -425,6 +425,10 @@ public:
   /// does already exist, allocate one.
   MachineJumpTableInfo *getOrCreateJumpTableInfo(unsigned JTEntryKind);
 
+  // Koo
+  void RecordMachineJumpTableInfo(MachineJumpTableInfo *MJTI);
+  mutable std::map<std::string, bool> canMBBFallThrough;
+  
   /// getConstantPool - Return the constant pool object for the current
   /// function.
   MachineConstantPool *getConstantPool() { return ConstantPool; }
