@@ -250,13 +250,6 @@ public:
     BuildGlobalModuleIndex = Build;
   }
 
-  // Koo
-  std::string getOutputTempObjFileName() {
-    std::string objFileName = OutputFiles.back().TempFilename;
-    objFileName = objFileName.substr(0, objFileName.rfind("."));
-    return objFileName + ".o";
-  };
-  
   /// }
   /// @name Forwarding Methods
   /// {

@@ -333,10 +333,7 @@ static bool ExecuteAssembler(AssemblerInvocation &Opts,
   MAI->setCompressDebugSections(Opts.CompressDebugSections);
 
   MAI->setRelaxELFRelocations(Opts.RelaxELFRelocations);
-  
-  // Koo: This path is only taken when assembly file (*.s) is passed (cc1_main.cpp o/w)
-  MAI->isAssemFile = true;
-  
+
   bool IsBinary = Opts.OutputType == AssemblerInvocation::FT_Obj;
   std::unique_ptr<raw_fd_ostream> FDOS = getOutputStream(Opts, Diags, IsBinary);
   if (!FDOS)
@@ -425,10 +422,6 @@ static bool ExecuteAssembler(AssemblerInvocation &Opts,
         Opts.RelaxAll, Opts.IncrementalLinkerCompatible,
         /*DWARFMustBeAtTheEnd*/ true));
     Str.get()->InitSections(Opts.NoExecStack);
-    
-    // Koo: The .rand section should be written in doFinalization()@CodeGen/AsmPrinter/AsmPrinter.cpp o/w
-    Str.get()->EmitRand(); 
-    
   }
 
   bool Failed = false;
