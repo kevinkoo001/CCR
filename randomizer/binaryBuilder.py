@@ -779,9 +779,13 @@ class BinaryBuilder():
             self.instBin += sectionChunk[pos:off]
             va = update_pos_vals[off]
             if self.EI.base > 0:
-                updated_va = self.EI.getBBlByVA(va).newVA
-                self.instBin += self.PK(FMT.ULONG, updated_va)
-                logging.debug('[%s] 0x%08x -> 0x%08x' % (secName, va, updated_va))
+                try:
+                    updated_va = self.EI.getBBlByVA(va).newVA
+                    self.instBin += self.PK(FMT.ULONG, updated_va)
+                    logging.debug('[%s] 0x%08x -> 0x%08x' % (secName, va, updated_va))
+                except AttributeError:
+                    self.instBin += self.PK(FMT.ULONG, va)
+                    logging.warning("\t Could not find a proper BBL in a debugging section (Ignored)")
                 pos = off + 8
 
         self.instBin += sectionChunk[pos:]
