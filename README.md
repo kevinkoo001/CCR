@@ -1,5 +1,7 @@
 # Compiler-assisted Code Randomization (CCR)
 ## Update News
+04/27/19 CCR supports LLVM 6
+
 04/25/19 CCR supports handwritten (standalone) assembly files. Because LLVM does not
 generate any internal MBB/MF structure, we silently skip fixup updates. Technically,
 it is difficult to obtain basic block boundaries from the compiler thus CCR excludes
