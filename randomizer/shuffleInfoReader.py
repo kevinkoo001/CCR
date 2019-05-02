@@ -289,6 +289,11 @@ if __name__ == '__main__':
     def isELF(f):
         # Check if the magic number is "\x7F ELF"
         return open(f, 'rb').read(4) == '\x7f\x45\x4c\x46'
+
+    def isGzipped(f):
+        # Check if the magic number is "\x1f \x8b"
+        return open(f, 'rb').read(2) == '\x1f\x8b'
+
     def isMetadata(f):
         return f.endswith(C.METADATA_POSTFIX)
 
@@ -312,7 +317,8 @@ if __name__ == '__main__':
         readOnly(fn + C.METADESC_POSTFIX, ri)
     elif isELF(sys.argv[1]):
         try:
-            ri.ParseFromString(gzip.open(fn, "rb").read())
+            bin_str = gzip.open(fn, "rb").read() if isGzipped(fn) else open(fn, "rb").read()
+            ri.ParseFromString(bin_str)
             print "Found the .rand section, dumping into %s (will be removed at the end)" % C.METADATA_PATH
             readOnly(sys.argv[1] + C.METADATA_POSTFIX + C.METADESC_POSTFIX, ri)
             os.remove(C.METADATA_PATH)
