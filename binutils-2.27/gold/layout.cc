@@ -3029,8 +3029,9 @@ namespace gold
                 }
 #ifdef CCR_MSG_DETAILS
                 gold_info("[CCR] (rodata Fixup in %s[%s]) TY=%d, OFF:0x%x->0x%x @layout.cc",
-                          obj_name.substr(obj_name.find_last_of("/")+1).c_str(), rodata_fixup_tuple.type(),
+                          obj_name.substr(obj_name.find_last_of("/")+1).c_str(),
                           rodata_fixup_tuple.section_name().c_str(),
+			  rodata_fixup_tuple.type(),
                           rodata_fixup_tuple.offset(), 
                           rodata_fixup_tuple.offset()+out_offsets[pfrom_object->get_rodata_shndx(to_add_fixup_info.rodata(j_2).section_name(), dup_section_order)]);
 #endif
