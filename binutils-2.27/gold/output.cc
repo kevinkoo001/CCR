@@ -3226,17 +3226,19 @@ namespace gold
             // CCR variables
             const char* insecname;
             off_t prev_raw_off = 0;
-            for (Input_section_list::iterator p = this->input_sections_.begin();
-                   p != this->input_sections_.end();
-                   ++p)
-            {
-                    if(p->is_input_section() && yarp_has_reorder){
+	    if (is_prefix_of(".text", this->name()){
+		    for (Input_section_list::iterator p = this->input_sections_.begin();
+			   p != this->input_sections_.end();
+			   ++p)
+		    {
+			    if(p->is_input_section() && yarp_has_reorder){
 #ifdef CCR_MSG_DETAILS
-                        gold_info("[lala]resetting object_id_map for %s", p->relobj()->name().c_str());
+				gold_info("[lala]resetting object_id_map for %s", p->relobj()->name().c_str());
 #endif
-                        p->relobj()->reset_yarp_object_id_map();
-                    }
-            }
+				p->relobj()->reset_yarp_object_id_map();
+			    }
+		    }
+	    }
             for (Input_section_list::iterator p = this->input_sections_.begin();
                  p != this->input_sections_.end();
                  ++p)
