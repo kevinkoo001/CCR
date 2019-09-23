@@ -293,46 +293,49 @@ class BinaryBuilder():
         self.instBin += sectionChunk[pos:]
 
     def patchRelocationSection(self, secName, sectionChunk):
-        """ Patches all relocation entries for .rela.dyn section """
+        """ Patches all relocation entries for .rela.[dyn|plt] section """
+        def _get_reloc_entries(r):
+            return r['r_offset'], r['r_addend'], r['r_info_type'], r['r_info_sym']
+
         patchCtr = 0
-        if self.EI.base == 0:
-            relocDyn = self.EP.elf.get_section_by_name('.rela.dyn')
-            assert(len(sectionChunk) % relocDyn.num_relocations() == 0)
 
-            """
-            # For now, any Addend (R_X86_64_RELATIVE) within the range of reordering would be updated
-            # Below is the example (* represents the randomized locations, which has been adjusted)
-            Relocation section '.rela.dyn' at offset 0x408 contains 10 entries:
-              Offset          Info           Type           Sym. Value    Sym. Name + Addend
-            000000001dd0  000000000008 R_X86_64_RELATIVE                    660
-            000000001dd8  000000000008 R_X86_64_RELATIVE                    6a0
-            000000002028  000000000008 R_X86_64_RELATIVE                    2028
-            000000002030  000000000008 R_X86_64_RELATIVE                    6d0*
-            000000002038  000000000008 R_X86_64_RELATIVE                    6f0*
-            000000001fd8  000100000006 R_X86_64_GLOB_DAT 0000000000000000 __cxa_finalize@GLIBC_2.2.5 + 0
-            000000001fc0  000300000006 R_X86_64_GLOB_DAT 0000000000000000 __gmon_start__ + 0
-            000000001fc8  000400000006 R_X86_64_GLOB_DAT 0000000000000000 _ITM_deregisterTMClone + 0
-            000000001fd0  000500000006 R_X86_64_GLOB_DAT 0000000000000000 _ITM_registerTMCloneTa + 0
-            000000001fe0  000600000006 R_X86_64_GLOB_DAT 0000000000000000 _Jv_RegisterClasses + 0
-            """
-            #TODO - Is there any other type to update other than R_X86_64_RELATIVE?
-            for rel in relocDyn.iter_relocations():
-                offset, addend = rel['r_offset'], rel['r_addend']
-                type, sym = rel['r_info_type'], rel['r_info_sym']
-                self.instBin += self.PK(FMT.LONG, offset)
-                self.instBin += self.PK(FMT.INT, type)
-                self.instBin += self.PK(FMT.INT, sym)
-                if self.EI.isInReorderRange(addend):
-                    newAddend = self.EI.getBBlByVA(addend).newVA
-                    self.instBin += self.PK(FMT.LONG, newAddend)
-                    patchCtr += 1
-                    logging.debug("   [%s] Original: 0x%x -> Updated: 0x%x" % (secName, addend, newAddend))
-                else:
-                    self.instBin += self.PK(FMT.LONG, addend)
+        reloc = self.EP.elf.get_section_by_name(secName)
+        assert (len(sectionChunk) % reloc.num_relocations() == 0)
 
-        # In case of non-pic, proceed it as normal
-        else:
-            self.instBin += sectionChunk
+        """
+        # For now, any Addend (R_X86_64_RELATIVE) within the range of reordering would be updated
+        # Below is the example (* represents the randomized locations, which has been adjusted)
+        Relocation section '.rela.dyn' at offset 0x408 contains 10 entries:
+          Offset          Info           Type           Sym. Value    Sym. Name + Addend
+        000000001dd0  000000000008 R_X86_64_RELATIVE                    660
+        000000001dd8  000000000008 R_X86_64_RELATIVE                    6a0
+        000000002028  000000000008 R_X86_64_RELATIVE                    2028
+        000000002030  000000000008 R_X86_64_RELATIVE                    6d0*
+        000000002038  000000000008 R_X86_64_RELATIVE                    6f0*
+        000000001fd8  000100000006 R_X86_64_GLOB_DAT 0000000000000000 __cxa_finalize@GLIBC_2.2.5 + 0
+        000000001fc0  000300000006 R_X86_64_GLOB_DAT 0000000000000000 __gmon_start__ + 0
+        000000001fc8  000400000006 R_X86_64_GLOB_DAT 0000000000000000 _ITM_deregisterTMClone + 0
+        000000001fd0  000500000006 R_X86_64_GLOB_DAT 0000000000000000 _ITM_registerTMCloneTa + 0
+        000000001fe0  000600000006 R_X86_64_GLOB_DAT 0000000000000000 _Jv_RegisterClasses + 0
+        """
+        # TODO - Is there any other type to update other than R_X86_64_RELATIVE? yes!
+        # [Update 09/19]
+        #   R_X86_64_IRELATIVE type == 0x25 (to support IFUNC) in a .rela.plt section (irrelevant to PIE)
+        #   Relocation Section: .rela.plt (3)
+        # 	ex) Offset + Addend: 0x200fc8 + 1744 	Info (Type, Symbol): 0x25 (R_X86_64_IRELATIVE, 0)
+        for rel in reloc.iter_relocations():
+            offset, addend, type, sym = _get_reloc_entries(rel)
+            self.instBin += self.PK(FMT.LONG, offset)
+            self.instBin += self.PK(FMT.INT, type)
+            self.instBin += self.PK(FMT.INT, sym)
+
+            if self.EI.isInReorderRange(addend):
+                newAddend = self.EI.getBBlByVA(addend).newVA
+                self.instBin += self.PK(FMT.LONG, newAddend)
+                patchCtr += 1
+                logging.debug("   [%s] Original: 0x%x -> Updated: 0x%x" % (secName, addend, newAddend))
+            else:
+                self.instBin += self.PK(FMT.LONG, addend)
 
         self.memo.numRelocPatch += patchCtr
 
@@ -838,7 +841,7 @@ class BinaryBuilder():
                 logging.info("\tProcessing section [%s]" % (layoutName))
 
             # Patch all fixups (including the ones resolved by compiler)
-            if layoutName == C.SEC_REL_DYN:
+            if layoutName == C.SEC_REL_DYN or layoutName == C.SEC_REL_PLT:
                 self.patchRelocationSection(layoutName, sectionChunk)
 
             elif layoutName == C.SEC_TEXT:
