@@ -1,5 +1,7 @@
 # Compiler-assisted Code Randomization (CCR)
 ## Update News
+09/23/19 CCR handles IFUNC cases (R_X86_64_IRELATIVE) in a rela.plt section
+
 04/27/19 CCR supports LLVM 6
 
 04/25/19 CCR supports handwritten (standalone) assembly files. Because LLVM does not
