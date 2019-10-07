@@ -301,8 +301,10 @@ bool AsmPrinter::doInitialization(Module &M) {
         TM.getTargetFeatureString()));
     OutStreamer->AddComment("Start of file scope inline assembly");
     OutStreamer->AddBlankLine();
+	
+	// Koo: Set MFID_MBBID as 9999_0 in case of module-level inline asm (special case)
     EmitInlineAsm(M.getModuleInlineAsm()+"\n",
-                  OutContext.getSubtargetCopy(*STI), TM.Options.MCOptions);
+                  OutContext.getSubtargetCopy(*STI), TM.Options.MCOptions, "9999_0");
     OutStreamer->AddComment("End of file scope inline assembly");
     OutStreamer->AddBlankLine();
   }
@@ -1544,6 +1546,9 @@ bool AsmPrinter::doFinalization(Module &M) {
 
   // Emit llvm.ident metadata in an '.ident' directive.
   EmitModuleIdents(M);
+  
+  // Koo: Emit the .rand section
+  OutStreamer->EmitRand();
 
   // Emit bytes for llvm.commandline metadata.
   EmitModuleCommandLines(M);
@@ -1659,6 +1664,10 @@ bool AsmPrinter::doFinalization(Module &M) {
   // Allow the target to emit any magic that it wants at the end of the file,
   // after everything else has gone out.
   EmitEndOfAsmFile(M);
+  
+  // Koo: store temporary object file name to generate metadata
+  //      it ends up with residing in the current module M for MCAssembler class
+  OutStreamer->setObjTmpName(M.getTmpObjFile());
 
   MMI = nullptr;
 

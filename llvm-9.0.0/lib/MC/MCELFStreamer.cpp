@@ -36,6 +36,10 @@
 #include <cassert>
 #include <cstdint>
 
+// Koo
+#include <tuple>
+#include <string>
+
 using namespace llvm;
 
 MCELFStreamer::MCELFStreamer(MCContext &Context,
@@ -356,6 +360,20 @@ void MCELFStreamer::EmitValueToAlignment(unsigned ByteAlignment,
                                          ValueSize, MaxBytesToEmit);
 }
 
+// Koo
+void MCELFStreamer::EmitRand() {
+  MCSection *Rand = getAssembler().getContext().getELFSection(
+      ".rand", ELF::SHT_PROGBITS, ELF::SHF_STRINGS, 1, "");
+  PushSection();
+  SwitchSection(Rand);
+  PopSection();
+}
+
+// Koo
+void MCELFStreamer::setObjTmpName(std::string tmpFileName) {
+  getAssembler().setObjTmpName(tmpFileName);
+}
+
 void MCELFStreamer::emitCGProfileEntry(const MCSymbolRefExpr *From,
                                        const MCSymbolRefExpr *To,
                                        uint64_t Count) {
@@ -498,6 +516,10 @@ void MCELFStreamer::EmitInstToFragment(const MCInst &Inst,
 
   for (unsigned i = 0, e = F.getFixups().size(); i != e; ++i)
     fixSymbolsInTLSFixups(F.getFixups()[i].getValue());
+
+  // Koo [Note] At this point MCRelaxableFragment has not been relaxed yet
+  //     Thus updateByteCounter() collect the final bytes at MCAssembler::relaxInstruction()
+  //     after it determines the need of the instruction relaxation and have it done.
 }
 
 // A fragment can only have one Subtarget, and when bundling is enabled we
@@ -516,6 +538,9 @@ void MCELFStreamer::EmitInstToData(const MCInst &Inst,
   SmallString<256> Code;
   raw_svector_ostream VecOS(Code);
   Assembler.getEmitter().encodeInstruction(Inst, VecOS, Fixups, STI);
+  
+  // Koo: Obtain the parent of this instruction (MFID_MBBID)
+  std::string ID = Inst.getParent();
 
   for (unsigned i = 0, e = Fixups.size(); i != e; ++i)
     fixSymbolsInTLSFixups(Fixups[i].getValue());
@@ -587,10 +612,67 @@ void MCELFStreamer::EmitInstToData(const MCInst &Inst,
   // Add the fixups and data.
   for (unsigned i = 0, e = Fixups.size(); i != e; ++i) {
     Fixups[i].setOffset(Fixups[i].getOffset() + DF->getContents().size());
+	
+	// Koo
+    Fixups[i].setFixupParentID(ID);
+    const MCExpr *FixupExpr = Fixups[i].getValue();
+    std::string SymName;
+
+    // FIXME: This is obviously not a good implementation this way but... 
+    if (FixupExpr->getKind() == MCExpr::SymbolRef || FixupExpr->getKind() == MCExpr::Binary) {
+      std::string JTPrefix = ".LJTI";
+      if (FixupExpr->getKind() == MCExpr::SymbolRef) {
+        const MCSymbolRefExpr &SRE1 = cast<MCSymbolRefExpr>(*FixupExpr);
+        const MCSymbol &Sym1 = SRE1.getSymbol();
+        SymName = Sym1.getName().str();
+      }
+
+      // This code is added because of pic/pie option
+      //    Fixup kind is "MCExpr::Binary" rather than "MCExpr::SymbolRef"
+      //    So here we evaluate BE.getLHS() instead
+      if (FixupExpr->getKind() == MCExpr::Binary) {
+        const MCBinaryExpr &BE = cast<MCBinaryExpr>(*FixupExpr);
+        if (isa<MCSymbolRefExpr>(BE.getLHS())) {
+          const MCSymbolRefExpr &SRE2 = cast<MCSymbolRefExpr>(*BE.getLHS());
+          const MCSymbol &Sym2 = SRE2.getSymbol();
+          SymName = Sym2.getName().str();
+        }
+      }
+
+      // Update the symbol reference for JT only for now.
+      if (SymName.find(JTPrefix) != std::string::npos) {
+        Fixups[i].setIsJumpTableRef(true);
+        Fixups[i].setSymbolRefFixupName(SymName.substr(JTPrefix.length(), SymName.length()));
+      }
+    }
+	
     DF->getFixups().push_back(Fixups[i]);
   }
   DF->setHasInstructions(STI);
   DF->getContents().append(Code.begin(), Code.end());
+  
+  // Koo: Here combines the emitted data as MCDataFragment
+  //      addMachineBasicBlockTag() keeps track of the IDs that identifies (MF+MBB) pair
+  //      MCRelaxableFragment will be generating in MCObjectStreamer::EmitInstToFragment()
+  unsigned EmittedBytes = Code.size();
+  const MCAsmInfo *MAI = Assembler.getContext().getAsmInfo();
+  unsigned numFixups = Fixups.size();
+
+  // Sometimes there exists the instruction with missing parentID (!!!!)
+  // Another corner case: However, we need to update the emitted bytes anyways
+  // For example, "cld; rep; stosq\n" emits 0xFC, (0xF3, 0x48), and 0xAB respectively with no parentID
+  if (ID.length() == 0)
+    ID = MAI->latestParentID;
+
+  DF->setLastParentTag(ID);
+  DF->addMachineBasicBlockTag(ID);
+  MAI->updateByteCounter(ID, EmittedBytes, numFixups, /*isAlign=*/ false, /*isInline=*/ false);
+
+  unsigned size, offset, fixups, alignments, type;
+  std::string sectionName;
+  std::tie(size, offset, fixups, alignments, type, sectionName) = MAI->MachineBasicBlocks[ID];
+
+  MAI->latestParentID = ID;
 
   if (Assembler.isBundlingEnabled() && Assembler.getRelaxAll()) {
     if (!isBundleLocked()) {

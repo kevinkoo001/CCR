@@ -30,6 +30,8 @@
 #include <utility>
 #include <vector>
 
+#include "llvm/Support/shuffleInfo.pb.h" // Koo
+
 namespace llvm {
 
 class MCAsmBackend;
@@ -114,6 +116,9 @@ private:
   std::vector<IndirectSymbolData> IndirectSymbols;
 
   std::vector<DataRegionData> DataRegions;
+  
+  // Koo: the variable holds the name of the temporary file during compilation
+  std::string reorderTmpFile;
 
   /// The list of linker options to propagate into the object file.
   std::vector<std::vector<std::string>> LinkerOptions;
@@ -206,8 +211,9 @@ private:
   /// finishLayout - Finalize a layout, including fragment lowering.
   void finishLayout(MCAsmLayout &Layout);
 
-  std::tuple<MCValue, uint64_t, bool>
+  std::tuple<MCValue, uint64_t, bool, bool> // Koo (added a IsPCRel argument)
   handleFixup(const MCAsmLayout &Layout, MCFragment &F, const MCFixup &Fixup);
+  
 
 public:
   std::vector<std::pair<StringRef, const MCSymbol *>> Symvers;
@@ -249,6 +255,12 @@ public:
 
   /// Flag a function symbol as the target of a .thumb_func directive.
   void setIsThumbFunc(const MCSymbol *Func) { ThumbFuncs.insert(Func); }
+  
+  // Koo
+  void setObjTmpName(std::string tmpFileName) { reorderTmpFile = tmpFileName; }
+  std::string getObjTmpName() const { return reorderTmpFile; }
+  std::string WriteRandInfo(const MCAsmLayout &Layout) const;
+  void writeReorderInfo(std::string fileName, ShuffleInfo::ReorderInfo* ri) const;
 
   /// ELF e_header flags
   unsigned getELFHeaderEFlags() const { return ELFHeaderEFlags; }

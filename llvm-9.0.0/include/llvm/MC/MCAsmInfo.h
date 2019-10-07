@@ -20,6 +20,12 @@
 #include "llvm/MC/MCTargetOptions.h"
 #include <vector>
 
+//Koo
+#include <map> 
+#include <tuple>
+#include <string>
+#include <list>
+
 namespace llvm {
 
 class MCContext;
@@ -394,6 +400,59 @@ public:
 
   /// Get the code pointer size in bytes.
   unsigned getCodePointerSize() const { return CodePointerSize; }
+  
+  // Koo: Essential bookkeeping information for reordering in the future (installation time)
+  // (a) MachineBasicBlocks (map)
+  //    * MFID_MBBID: <size, offset, # of fixups within MBB, alignments, type, sectionName>
+  //    - The type field represents when the block is the end of MF or Object where MBB = 0, MF = 1, and Obj = 2
+  //    - The sectionOrdinal field is for C++ only; it tells current BBL belongs to which section!
+  mutable std::map<std::string, std::tuple<unsigned, unsigned, unsigned, unsigned, unsigned, std::string>> MachineBasicBlocks;
+  //    * MFID: fallThrough-ability
+  mutable std::map<std::string, bool> canMBBFallThrough;
+  //    * MachineFunctionID: size
+  mutable std::map<unsigned, unsigned> MachineFunctionSizes;
+  //    - The order of the ID in a binary should be maintained layout because it might be non-sequential.
+  mutable std::list<std::string> MBBLayoutOrder;
+
+  // (b) Fixups (list)
+  //    * <offset, size, isRela, parentID, SymbolRefFixupName, isNewSection, secName, numJTEntries, JTEntrySz>
+  //    - The last two elements are jump table information for FixupsText only,
+  //      which allows for updating the jump table entries (relative values) with pic/pie-enabled.
+  mutable std::list<std::tuple<unsigned, unsigned, bool, std::string, std::string, bool, std::string, unsigned, unsigned>> 
+          FixupsText, FixupsRodata, FixupsData, FixupsDataRel, FixupsInitArray; 
+  //    - FixupsEhframe, FixupsExceptTable; (Not needed any more as a randomizer directly handles them later on)
+  //    - Keep track of the latest ID when parent ID is unavailable
+  mutable std::string latestParentID;
+
+  // (c) Others
+  //     The following method helps full-assembly file (*.s) identify functions and basic blocks
+  //     that inherently lacks their boundaries because neither MF nor MBB has been constructed.
+  mutable bool isAssemFile = false;
+  mutable bool hasInlineAssembly = false;
+  mutable std::string prevOpcode;
+  mutable unsigned assemFuncNo = 0xffffffff;
+  mutable unsigned assemBBLNo = 0;
+  mutable unsigned specialCntPriorToFunc = 0;
+
+    // Update emittedBytes from either DataFragment, RelaxableFragment or AlignFragment
+  void updateByteCounter(std::string id, unsigned emittedBytes, unsigned numFixups, \
+                         bool isAlign, bool isInline) const {
+    // std::string id = std::to_string(fnid) + "_" + std::to_string(bbid);
+    // Create the tuple for the MBB
+    if (MachineBasicBlocks.count(id) == 0) {
+      MachineBasicBlocks[id] = std::make_tuple(0, 0, 0, 0, 0, "");
+    }
+
+    // Otherwise update MBB tuples
+    std::get<0>(MachineBasicBlocks[id]) += emittedBytes; // Acutal size in MBB
+    std::get<2>(MachineBasicBlocks[id]) += numFixups;    // Number of Fixups in MBB
+    if (isAlign)
+      std::get<3>(MachineBasicBlocks[id]) += emittedBytes;  // Count NOPs in MBB
+
+    // If inlined, add the bytes in the next MBB instead of current one
+    if (isInline)
+      std::get<0>(MachineBasicBlocks[latestParentID]) -= emittedBytes;
+  }
 
   /// Get the callee-saved register stack slot
   /// size in bytes.

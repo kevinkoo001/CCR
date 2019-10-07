@@ -19,6 +19,12 @@
 #include "llvm/Support/CodeGen.h"
 #include "llvm/Support/VersionTuple.h"
 
+// Koo
+#include <list>
+#include <map>
+#include <string>
+#include <tuple>
+
 namespace llvm {
 class MCContext;
 class MCSection;
@@ -177,6 +183,8 @@ protected:
   MCSection *MergeableConst8Section;
   MCSection *MergeableConst16Section;
   MCSection *MergeableConst32Section;
+  
+  MCSection *RandSection; // Koo (.rand)
 
   // MachO specific sections.
 
@@ -234,6 +242,18 @@ public:
 
   unsigned getCompactUnwindDwarfEHFrameOnly() const {
     return CompactUnwindDwarfEHFrameOnly;
+  }
+
+  // Koo - Contains all JumpTables whose entries consist of the target MFs and MBBs
+  //<MachineFunctionIdx_JumpTableIdx> - <(EntryKind, EntrySize, Entries[MFID_MBBID])>
+  mutable std::map<std::string, std::tuple<unsigned, unsigned, std::list<std::string>>> JumpTableTargets;
+
+  std::map<std::string, std::tuple<unsigned, unsigned, std::list<std::string>>> \
+        getJumpTableTargets() const { return JumpTableTargets; }
+
+  void updateJumpTableTargets(std::string Key, unsigned EntryKind, unsigned EntrySize, \
+                              std::list<std::string> JTEntries) const {
+    JumpTableTargets[Key] = std::make_tuple(EntryKind, EntrySize, JTEntries);
   }
 
   MCSection *getTextSection() const { return TextSection; }

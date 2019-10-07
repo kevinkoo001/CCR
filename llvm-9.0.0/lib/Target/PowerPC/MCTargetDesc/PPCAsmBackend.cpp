@@ -193,6 +193,9 @@ public:
 
     return true;
   }
+  
+  unsigned getFixupKindLog2Size(unsigned Kind) const override { return 0; } // Koo [N/A Here]
+  
 };
 } // end anonymous namespace
 

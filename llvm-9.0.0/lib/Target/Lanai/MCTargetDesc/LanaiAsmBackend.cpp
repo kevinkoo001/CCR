@@ -64,6 +64,8 @@ public:
   }
 
   const MCFixupKindInfo &getFixupKindInfo(MCFixupKind Kind) const override;
+  
+  unsigned getFixupKindLog2Size(unsigned Kind) const override { return 0; } // Koo [N/A Here]
 
   unsigned getNumFixupKinds() const override {
     return Lanai::NumTargetFixupKinds;

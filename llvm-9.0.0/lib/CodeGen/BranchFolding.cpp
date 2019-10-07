@@ -129,9 +129,17 @@ bool BranchFolderPass::runOnMachineFunction(MachineFunction &MF) {
       getAnalysis<MachineBlockFrequencyInfo>());
   BranchFolder Folder(EnableTailMerge, /*CommonHoist=*/true, MBBFreqInfo,
                       getAnalysis<MachineBranchProbabilityInfo>());
-  return Folder.OptimizeFunction(MF, MF.getSubtarget().getInstrInfo(),
+				  
+  bool madeChange = Folder.OptimizeFunction(MF, MF.getSubtarget().getInstrInfo(),
                                  MF.getSubtarget().getRegisterInfo(),
                                  getAnalysisIfAvailable<MachineModuleInfo>());
+  
+  // Koo - The final JTInfo, which could be overriden
+  //       For example lib/Target/X86/X86ISelDAGToDAG.cpp for x86
+  MachineJumpTableInfo *MJTI = MF.getJumpTableInfo();
+  if (MJTI)
+    MF.RecordMachineJumpTableInfo(MJTI);  
+  return madeChange;
 }
 
 BranchFolder::BranchFolder(bool defaultEnableTailMerge, bool CommonHoist,

@@ -42,6 +42,17 @@
 #include <tuple>
 #include <utility>
 
+// Koo
+#include "llvm/MC/MCObjectFileInfo.h"
+#include "llvm/Support/shuffleInfo.pb.h"
+#include <sstream>
+#include <fstream>
+#include <iostream>
+#include <string>
+#include <iomanip>
+#include <map>
+#include <set>
+
 using namespace llvm;
 
 #define DEBUG_TYPE "assembler"
@@ -717,8 +728,8 @@ void MCAssembler::writeSectionData(raw_ostream &OS, const MCSection *Sec,
   assert(OS.tell() - Start == Layout.getSectionAddressSize(Sec));
 }
 
-std::tuple<MCValue, uint64_t, bool>
-MCAssembler::handleFixup(const MCAsmLayout &Layout, MCFragment &F,
+std::tuple<MCValue, uint64_t, bool, bool> // Koo
+MCAssembler::handleFixup(const MCAsmLayout &Layout, MCFragment &F, 
                          const MCFixup &Fixup) {
   // Evaluate the fixup.
   MCValue Target;
@@ -726,6 +737,11 @@ MCAssembler::handleFixup(const MCAsmLayout &Layout, MCFragment &F,
   bool WasForced;
   bool IsResolved = evaluateFixup(Layout, Fixup, &F, Target, FixedValue,
                                   WasForced);
+								  
+  // Koo: Fixme - the following line is redundant in evaluateFixup()
+  bool IsPCRel = getBackendPtr()->getFixupKindInfo(Fixup.getKind()).Flags &
+                 MCFixupKindInfo::FKF_IsPCRel;
+
   if (!IsResolved) {
     // The fixup was unresolved, we need a relocation. Inform the object
     // writer of the relocation, and give it an opportunity to adjust the
@@ -751,7 +767,335 @@ MCAssembler::handleFixup(const MCAsmLayout &Layout, MCFragment &F,
                                    FixedValue);
     }
   }
-  return std::make_tuple(Target, FixedValue, IsResolved);
+  return std::make_tuple(Target, FixedValue, IsResolved, IsPCRel); // Koo
+}
+
+// Koo: Dump all fixups if necessary 
+//      In .text, .rodata, .data, .data.rel.ro, .eh_frame, and debugging sections
+void dumpFixups(std::list<std::tuple<unsigned, unsigned, bool, std::string, std::string, bool, std::string, unsigned, unsigned>> \
+                Fixups, std::string kind, bool isDebug) {
+  if (Fixups.size() > 0) {
+    DEBUG_WITH_TYPE("ccr-metadata", dbgs() << " - Fixups Info (." << kind << "): " << Fixups.size() << "\n");
+    unsigned offset, size, numJTEntries, JTEntrySize;
+    bool isRel, isNewSection;
+    std::string FixupParentID, SymbolRefFixupName, sectionName;
+
+    for (auto it = Fixups.begin(); it != Fixups.end(); ++it) {
+      std::tie(offset, size, isRel, FixupParentID, SymbolRefFixupName, isNewSection, sectionName, numJTEntries, JTEntrySize) = *it;
+      char isRelTF = isRel ? 'T' : 'F';
+      if (isDebug && SymbolRefFixupName.length() > 0) {
+        errs() << "\t[" << FixupParentID << "]\t(" << offset << ", "  << size << ", " << isRelTF;
+        if (SymbolRefFixupName.length() > 0)
+          errs() << ", JT#" << SymbolRefFixupName;
+        errs() << ")\n";
+      }
+    }
+  }
+}
+
+// Koo: Helper function to separate ID into MFID and MBBID
+std::tuple<int, int> separateID(std::string ID) {
+  return std::make_tuple(std::stoi(ID.substr(0, ID.find("_"))), \
+                         std::stoi(ID.substr(ID.find("_") + 1, ID.length())));
+}
+
+// Koo: Convert int into hex (0x00abcdef)
+template<typename T>
+std::string hexlify(T i) {
+    std::stringbuf buf;
+    std::ostream os(&buf);
+    os << "0x" << std::setfill('0') << std::setw(sizeof(T) * 2) << std::hex << i;
+    return buf.str();
+}
+
+// Koo: Final value updates for the entire layout of both MFs and MBBs
+void updateReorderInfoValues(const MCAsmLayout &Layout) {
+  const MCAsmInfo *MAI = Layout.getAssembler().getContext().getAsmInfo();
+  const MCObjectFileInfo *MOFI = Layout.getAssembler().getContext().getObjectFileInfo();
+  std::map<std::string, std::tuple<unsigned, unsigned, std::list<std::string>>> \
+        jumpTables = MOFI->getJumpTableTargets();
+
+  // Show both MF and MBB offsets according to the final layout order
+  DEBUG_WITH_TYPE("ccr-metadata", dbgs() << "\n<MF/MBB Layout Summary>\n");
+  DEBUG_WITH_TYPE("ccr-metadata", dbgs() << "----------------------------------------------------------------------------------\n");
+  DEBUG_WITH_TYPE("ccr-metadata", dbgs() << " Layout\tMF_MBB_ID\tMBBSize\tAlign\tFixups\tOffset   \tMFSize\tSection\n");
+
+  // Deal with MFs and MBBs in a ELF code section (.text) only
+  for (MCSection &Sec : Layout.getAssembler()) {
+    MCSectionELF &ELFSec = static_cast<MCSectionELF &>(Sec);
+    std::string tmpSN, sectionName = ELFSec.getSectionName();
+    if (sectionName.find(".text") == 0) {
+      unsigned totalOffset = 0, totalFixups = 0, totalAlignSize = 0;
+      int MFID, MBBID, prevMFID = -1;
+      std::string prevID, canFallThrough;
+      unsigned MBBSize, MBBOffset, numFixups, alignSize, MBBType;
+      std::set<std::string> countedMBBs;
+
+      // Per each fragment in a .text section
+      for (MCFragment &MCF : Sec) {
+        // Here MCDataFragment has combined with the following MCRelaxableFragment or MCAlignFragment
+        // Corner case: MCDataFragment with no instruction - just skip it
+        if (isa<MCDataFragment>(MCF) && MCF.hasInstructions()) {
+
+        // Update the MBB offset and MF Size for all collected MBBs in the MF
+          for (std::string ID : MCF.getAllMBBs()) {
+            if (ID.length() == 0 && std::get<0>(MAI->MachineBasicBlocks[ID]) > 0)
+              llvm_unreachable("[CCR-Error] MCAssembler(updateReorderInfoValues) - MCSomething went wrong in MCRelaxableFragment: MBB size > 0 with no parentID?");
+
+            if (countedMBBs.find(ID) == countedMBBs.end() && ID.length() > 0) {
+              bool isStartMF = false; // check if the new MF begins
+              std::tie(MFID, MBBID) = separateID(ID);
+              std::tie(MBBSize, MBBOffset, numFixups, alignSize, MBBType, tmpSN) = MAI->MachineBasicBlocks[ID];
+
+              if (tmpSN.length() > 0) continue;
+              MAI->MBBLayoutOrder.push_back(ID);
+
+              // Handle a corner case: see handleDirectEmitDirectives() in AsmParser.cpp
+              if (MAI->specialCntPriorToFunc > 0) {
+                MAI->updateByteCounter(ID, MAI->specialCntPriorToFunc, /*numFixups=*/ 0, /*isAlign=*/ false, /*isInline=*/ false);
+                MBBSize += MAI->specialCntPriorToFunc;
+                MAI->specialCntPriorToFunc = 0;
+              }
+
+              // Update the MBB offset, MF Size and section name accordingly
+              std::get<1>(MAI->MachineBasicBlocks[ID]) = totalOffset;
+              totalOffset += MBBSize;
+              totalFixups += numFixups;
+              totalAlignSize += alignSize;
+              countedMBBs.insert(ID);
+              MAI->MachineFunctionSizes[MFID] += MBBSize;
+              std::get<5>(MAI->MachineBasicBlocks[ID]) = sectionName;
+              canFallThrough = MAI->canMBBFallThrough[ID] ? "*":"";
+
+              if (MFID > prevMFID) {
+                isStartMF = true;
+                std::get<4>(MAI->MachineBasicBlocks[prevID]) = 1; // Type = End of the function
+              }
+
+              unsigned layoutID = MCF.getLayoutOrder();
+              if (isStartMF) 
+                DEBUG_WITH_TYPE("ccr-metadata", dbgs() << "----------------------------------------------------------------------------------\n");
+              DEBUG_WITH_TYPE("ccr-metadata", dbgs() << " " << layoutID << "\t[DF " << ID << "]" << canFallThrough << "\t" << MBBSize << "B\t" \
+                     << alignSize << "B\t" << numFixups << "\t" << hexlify(totalOffset) << "\t" \
+                     << MAI->MachineFunctionSizes[MFID] << "B\t" << "(" << sectionName << ")\n");
+
+              prevMFID = MFID;
+              prevID = ID;
+            }
+          }
+        }
+
+        // Check out MCRelaxableFragments, which have not combined with any MCDataFragment
+        // It happens when there are consecutive MCRelaxableFragment (i.e., switch/case)
+        if (isa<MCRelaxableFragment>(MCF) && MCF.hasInstructions()) {
+          MCRelaxableFragment &MCRF = static_cast<MCRelaxableFragment&>(MCF);
+          std::string ID = MCRF.getInst().getParent();
+
+          if (ID.length() == 0 && std::get<0>(MAI->MachineBasicBlocks[ID]) > 0)
+              llvm_unreachable("[CCR-Error] MCAssembler(updateReorderInfoValues) - MCSomething went wrong in MCRelaxableFragment: MBB size > 0 with no parentID?");
+
+          // If yet the ID has not been showed up along with getAllMBBs(), 
+          // it would be an independent RF that does not belong to any DF
+          if (countedMBBs.find(ID) == countedMBBs.end() && ID.length() > 0) {
+            bool isStartMF = false;
+            std::tie(MFID, MBBID) = separateID(ID);
+            std::tie(MBBSize, MBBOffset, numFixups, alignSize, MBBType, tmpSN) = MAI->MachineBasicBlocks[ID];
+
+            if (tmpSN.length() > 0) continue;
+            MAI->MBBLayoutOrder.push_back(ID);
+
+            // Update the MBB offset, MF Size and section name accordingly
+            std::get<1>(MAI->MachineBasicBlocks[ID]) = totalOffset;
+            totalOffset += MBBSize;
+            totalFixups += numFixups;
+            totalAlignSize += alignSize;
+            countedMBBs.insert(ID);
+            MAI->MachineFunctionSizes[MFID] += MBBSize;
+            std::get<5>(MAI->MachineBasicBlocks[ID]) = sectionName;
+            canFallThrough = MAI->canMBBFallThrough[ID] ? "*":"";
+
+            if (MFID > prevMFID) {
+              isStartMF = true;
+              std::get<4>(MAI->MachineBasicBlocks[prevID]) = 1; // Type = End of the function
+            }
+
+            unsigned layoutID = MCF.getLayoutOrder();
+            if (isStartMF) 
+              DEBUG_WITH_TYPE("ccr-metadata", dbgs() << "----------------------------------------------------------------------------------\n");
+            DEBUG_WITH_TYPE("ccr-metadata", dbgs() << " " << layoutID << "\t[DF " << ID << "]" << canFallThrough << "\t" << MBBSize << "B\t" \
+                     << alignSize << "B\t" << numFixups << "\t" << hexlify(totalOffset) << "\t" \
+                     << MAI->MachineFunctionSizes[MFID] << "B\t" << "(" << sectionName << ")\n");
+
+            prevMFID = MFID;
+            prevID = ID;
+          }
+        }
+      }
+
+      // The last ID Type is always the end of the object
+      std::get<4>(MAI->MachineBasicBlocks[prevID]) = 2; 
+      DEBUG_WITH_TYPE("ccr-metadata", dbgs() << "----------------------------------------------------------------------------------\n");
+      DEBUG_WITH_TYPE("ccr-metadata", dbgs() << "Code(B)\tNOPs(B)\tMFs\tMBBs\tFixups\n");
+      DEBUG_WITH_TYPE("ccr-metadata", dbgs() << totalOffset << "\t" << totalAlignSize << "\t" << MAI->MachineFunctionSizes.size() \
+                                             << "\t" << MAI->MachineBasicBlocks.size() << "\t" << totalFixups << "\n"); 
+      DEBUG_WITH_TYPE("ccr-metadata", dbgs() << "\tLegend\n\t(*) FallThrough MBB\n  ");
+    }
+  }
+
+  // Dump if there is any CFI-generated JT
+  if (jumpTables.size() > 0) {
+    DEBUG_WITH_TYPE("ccr-metadata", dbgs() << "\n<Jump Tables Summary>\n");
+    unsigned totalEntries = 0;
+    for(auto it = jumpTables.begin(); it != jumpTables.end(); ++it) {
+      int JTI, MFID, MFID2, MBBID;
+      unsigned entryKind, entrySize;
+      std::list<std::string> JTEntries;
+
+      std::tie(MFID, JTI) = separateID(it->first);
+      std::tie(entryKind, entrySize, JTEntries) = it->second;
+
+      DEBUG_WITH_TYPE("ccr-metadata", dbgs() << "[JT@Function#" << MFID << "_" << JTI << "] " << "(Kind: " \
+                      << entryKind << ", " << JTEntries.size() << " Entries of " << entrySize << "B each)\n");
+
+      for (std::string JTE : JTEntries) {
+        std::tie(MFID2, MBBID) = separateID(JTE);
+        totalEntries++;
+        if (MFID != MFID2)
+          errs() << "[CCR-Error] MCAssembler::updateReorderInfoValues - JT Entry points to the outside of MF! \n";
+        DEBUG_WITH_TYPE("ccr-metadata", dbgs() << "\t[" << JTE << "]\t" << \
+                        hexlify(std::get<1>(MAI->MachineBasicBlocks[JTE])) << "\n");
+      }
+    }
+
+    DEBUG_WITH_TYPE("ccr-metadata", dbgs() << "#JTs\t#Entries\n" << jumpTables.size() << "\t" << totalEntries << "\n");
+  }
+}
+
+// Koo: These sections contain the fixups that we want to handle
+static const char* fixupLookupSections[] = 
+{
+    ".text",
+    ".rodata",
+    ".data",
+    ".data.rel.ro",
+    ".init_array",
+};
+
+
+// Koo: Helper functions for serializeReorderInfo()
+int getFixupSectionId(std::string secName) {
+    for (size_t i = 0; i < sizeof(fixupLookupSections)/sizeof(*fixupLookupSections); ++i)
+        if (secName.compare(fixupLookupSections[i]) == 0)
+            return i;
+    return -1;
+}
+
+ShuffleInfo::ReorderInfo_FixupInfo_FixupTuple* getFixupTuple(ShuffleInfo::ReorderInfo_FixupInfo* FI, std::string secName) {
+  switch (getFixupSectionId(secName)) {
+    case 0: return FI->add_text();
+    case 1: return FI->add_rodata();
+    case 2: return FI->add_data();
+    case 3: return FI->add_datarel();
+    case 4: return FI->add_initarray();
+    default: llvm_unreachable("[CCR-Error] ShuffleInfo::getFixupTuple - No such section to collect fixups!");
+  }
+}
+
+void setFixups(std::list<std::tuple<unsigned, unsigned, bool, std::string, std::string, bool, std::string, unsigned, unsigned>> Fixups,
+               ShuffleInfo::ReorderInfo_FixupInfo* fixupInfo, std::string secName) {
+  unsigned FixupOffset, FixupSize, FixupisRela, numJTEntries, JTEntrySize;
+  std::string sectionName, FixupParentID, SymbolRefFixupName;
+  bool isNewSection;
+
+  for (auto F = Fixups.begin(); F != Fixups.end(); ++F) {
+    ShuffleInfo::ReorderInfo_FixupInfo_FixupTuple* pFixupTuple = getFixupTuple(fixupInfo, secName);
+    std::tie(FixupOffset, FixupSize, FixupisRela, FixupParentID, \
+             SymbolRefFixupName, isNewSection, sectionName, numJTEntries, JTEntrySize) = *F;
+    pFixupTuple->set_offset(FixupOffset);
+    pFixupTuple->set_deref_sz(FixupSize);
+    pFixupTuple->set_is_rela(FixupisRela);
+    pFixupTuple->set_section_name(sectionName);
+    if (isNewSection) 
+      pFixupTuple->set_type(4); // let linker know if there are multiple .text sections
+    else
+      pFixupTuple->set_type(0); // c2c, c2d, d2c, d2d default=0; should be updated by linker
+
+    // The following jump table information is fixups in .text for JT entry update only (pic/pie)
+    if (numJTEntries > 0) {
+       pFixupTuple->set_num_jt_entries(numJTEntries);
+       pFixupTuple->set_jt_entry_sz(JTEntrySize);
+    }
+  }
+}
+
+// Koo: Serialize all information for future reordering, which has been stored in MCAsmInfo
+void serializeReorderInfo(ShuffleInfo::ReorderInfo* ri, const MCAsmLayout &Layout) {
+  // Set the binary information for reordering
+  ShuffleInfo::ReorderInfo_BinaryInfo* binaryInfo = ri->mutable_bin();
+  binaryInfo->set_rand_obj_offset(0x0);     // Should be updated at linking time
+  binaryInfo->set_main_addr_offset(0x0);    // Should be updated at linking time
+
+  const MCAsmInfo *MAI = Layout.getAssembler().getContext().getAsmInfo();
+
+  // Identify this object file has been compiled from:
+  //    obj_type = 0: a general source file (i.e., *.c, *.cc, *.cpp, ...)
+  //    obj_type = 1: a source file that contains inline assembly
+  //    obj_type = 2: standalone assembly file (i.e., *.s, *.S, ...)
+  if (MAI->isAssemFile)
+    binaryInfo->set_src_type(2);
+  else if (MAI->hasInlineAssembly)
+    binaryInfo->set_src_type(1);
+  else
+    binaryInfo->set_src_type(0);
+
+  updateReorderInfoValues(Layout);
+
+  // Set the layout of both Machine Functions and Machine Basic Blocks with protobuf definition
+  std::string sectionName;
+  unsigned MBBSize, MBBoffset, numFixups, alignSize, MBBtype;
+  unsigned objSz = 0, numFuncs = 0, numBBs = 0;
+  int MFID, MBBID, prevMFID = 0;
+
+  for (auto MBBI = MAI->MBBLayoutOrder.begin(); MBBI != MAI->MBBLayoutOrder.end(); ++MBBI) {
+    ShuffleInfo::ReorderInfo_LayoutInfo* layoutInfo = ri->add_layout();
+    std::string ID = *MBBI;
+    std::tie(MFID, MBBID) = separateID(ID);
+    std::tie(MBBSize, MBBoffset, numFixups, alignSize, MBBtype, sectionName) = MAI->MachineBasicBlocks[ID];
+    bool MBBFallThrough = MAI->canMBBFallThrough[ID];
+
+    layoutInfo->set_bb_size(MBBSize);
+    layoutInfo->set_type(MBBtype);
+    layoutInfo->set_num_fixups(numFixups);
+    layoutInfo->set_bb_fallthrough(MBBFallThrough);
+    layoutInfo->set_section_name(sectionName);
+
+    if (MFID > prevMFID) {
+      numFuncs++;
+      numBBs = 0;
+    }
+
+    objSz += MBBSize;
+    numBBs++;
+    prevMFID = MFID;
+  }
+
+  binaryInfo->set_obj_sz(objSz);
+
+  // Set the fixup information (.text, .rodata, .data, .data.rel.ro and .init_array)
+  ShuffleInfo::ReorderInfo_FixupInfo* fixupInfo = ri->add_fixup();
+  setFixups(MAI->FixupsText, fixupInfo, ".text");
+  setFixups(MAI->FixupsRodata, fixupInfo, ".rodata");
+  setFixups(MAI->FixupsData, fixupInfo, ".data");
+  setFixups(MAI->FixupsDataRel, fixupInfo, ".data.rel.ro");
+  setFixups(MAI->FixupsInitArray, fixupInfo, ".init_array");
+
+  // Show the fixup information for each section
+  DEBUG_WITH_TYPE("ccr-metadata", dbgs() << "\n<Fixups Summary>\n");
+  dumpFixups(MAI->FixupsText, "text", /*isDebug*/ false);
+  dumpFixups(MAI->FixupsRodata, "rodata", false);
+  dumpFixups(MAI->FixupsData, "data", false);
+  dumpFixups(MAI->FixupsDataRel, "data.rel.ro", false);
+  dumpFixups(MAI->FixupsInitArray, "init_array", false);
 }
 
 void MCAssembler::layout(MCAsmLayout &Layout) {
@@ -801,13 +1145,54 @@ void MCAssembler::layout(MCAsmLayout &Layout) {
   // example, to set the index fields in the symbol data).
   getWriter().executePostLayoutBinding(*this, Layout);
 
+  // Koo - Collect what we need once layout has been finalized
+  const MCAsmInfo *MAI = Layout.getAssembler().getContext().getAsmInfo();
+  const MCObjectFileInfo *MOFI = Layout.getAssembler().getContext().getObjectFileInfo();
+  bool isNewTextSection = false, isNewRodataSection = false;
+  bool isNewDataSection = false, isNewDataRelSection = false, isNewInitSection = false;
+  unsigned textSecCtr = 0, rodataSecCtr = 0, dataSecCtr = 0, dataRelSecCtr = 0, initSecCtr = 0;
+  unsigned prevLayoutOrder;
+  
   // Evaluate and apply the fixups, generating relocation entries as necessary.
   for (MCSection &Sec : *this) {
+	// Koo
+    MCSectionELF &ELFSec = static_cast<MCSectionELF &>(Sec);
+    std::string secName = ELFSec.getSectionName();
+    unsigned layoutOrder = ELFSec.getLayoutOrder();
+	
     for (MCFragment &Frag : Sec) {
       // Data and relaxable fragments both have fixups.  So only process
       // those here.
       // FIXME: Is there a better way to do this?  MCEncodedFragmentWithFixups
       // being templated makes this tricky.
+	  
+	  // Koo - Attach the size of the alignment to the previous fragment.
+      //       Here assumes a) no two alignments are consecutive.
+      //                    b) data fragment (DF or RF) exists prior to AF. (may be broken in assembly)
+      uint64_t fragOffset = Frag.getOffset();
+      MCFragment *prevFrag;
+
+      if (isa<MCDataFragment>(&Frag) && Frag.hasInstructions())
+        prevFrag = static_cast<MCDataFragment*>(&Frag);
+
+      if (isa<MCRelaxableFragment>(&Frag) && Frag.hasInstructions())
+        prevFrag = static_cast<MCRelaxableFragment*>(&Frag);
+
+      // Update alignment size to reflect to the size of MF and MBB
+      if (MOFI->getObjectFileType() == llvm::MCObjectFileInfo::IsELF && \
+         secName.find(".text") == 0 && (isa<MCAlignFragment>(&Frag)) && fragOffset > 0) {
+         // Push this alignment to the previous MBB and the MF that the MBB belongs to
+         unsigned alignSize;
+         std::string ID;
+         if (isa<MCDataFragment>(*prevFrag))
+           ID = static_cast<MCDataFragment*>(prevFrag)->getLastParentTag();
+         if (isa<MCRelaxableFragment>(*prevFrag))
+           ID = static_cast<MCRelaxableFragment*>(prevFrag)->getInst().getParent();
+
+         alignSize = computeFragmentSize(Layout, Frag);
+         MAI->updateByteCounter(ID, alignSize, 0, /*isAlign=*/ true, /*isInline=*/ false);
+      }
+	  
       if (isa<MCEncodedFragment>(&Frag) &&
           isa<MCCompactEncodedInstFragment>(&Frag))
         continue;
@@ -845,14 +1230,137 @@ void MCAssembler::layout(MCAsmLayout &Layout) {
       for (const MCFixup &Fixup : Fixups) {
         uint64_t FixedValue;
         bool IsResolved;
+		bool IsPCRel; // Koo
+		
         MCValue Target;
-        std::tie(Target, FixedValue, IsResolved) =
+        std::tie(Target, FixedValue, IsResolved, IsPCRel) = // Koo
             handleFixup(Layout, Frag, Fixup);
         getBackend().applyFixup(*this, Fixup, Target, Contents, FixedValue,
                                 IsResolved, STI);
+		
+		// Koo: Collect fixups here (ELF format only)
+        if (MOFI->getObjectFileType() == llvm::MCObjectFileInfo::IsELF) {
+            unsigned offset = fragOffset + Fixup.getOffset();
+            unsigned derefSize = getBackend().getFixupKindLog2Size(Fixup.getKind());
+            unsigned jtEntryKind = 0, jtEntrySize = 0, numJTEntries = 0;
+            std::map<std::string, std::tuple<unsigned, unsigned, std::list<std::string>>> JTs = MOFI->getJumpTableTargets();
+            std::string fixupParentID = Fixup.getFixupParentID();
+            std::string SymbolRefFixupName = Fixup.getSymbolRefFixupName();
+            std::list<std::string> JTEs; // contains all target(MFID_MBBID) in the JT
+
+            // The following handles multiple sections in C++
+            if (secName.find(".text") == 0) {
+              if (textSecCtr == 0) {
+                prevLayoutOrder = layoutOrder;
+                textSecCtr++;
+              }
+              else {
+                isNewTextSection = (layoutOrder == prevLayoutOrder) ? false:true;
+                if (isNewTextSection) textSecCtr++;
+                prevLayoutOrder = layoutOrder;
+              }
+              if (Fixup.getIsJumpTableRef()) {
+                std::tie(jtEntryKind, jtEntrySize, JTEs) = JTs[Fixup.getSymbolRefFixupName()];
+                numJTEntries = JTEs.size();
+              }
+              MAI->FixupsText.push_back(std::make_tuple(offset, derefSize, IsPCRel, \
+                   fixupParentID, SymbolRefFixupName, isNewTextSection, secName, numJTEntries, jtEntrySize));
+            }
+
+            else if (secName.find(".rodata") == 0) {
+              if (rodataSecCtr == 0) {
+                prevLayoutOrder = layoutOrder;
+                rodataSecCtr++;
+              }
+              else {
+                isNewRodataSection = (layoutOrder == prevLayoutOrder) ? false:true;
+                if (isNewRodataSection) rodataSecCtr++;
+                prevLayoutOrder = layoutOrder;
+              }
+              MAI->FixupsRodata.push_back(std::make_tuple(offset, derefSize, IsPCRel, \
+                   fixupParentID, SymbolRefFixupName, isNewRodataSection, secName, numJTEntries, jtEntrySize));
+            }
+
+            else if (secName.find(".data") == 0) {
+              // The following special section could be generated to support RELRO option
+              // "When gcc sees a variable which is constant but requires a dynamic relocation, 
+              // it puts it into a section named .data.rel.ro"
+              if (secName.find(".data.rel.ro") == 0) {
+                if (dataRelSecCtr == 0) {
+                  prevLayoutOrder = layoutOrder;
+                  dataRelSecCtr++;
+                }
+                else {
+                  isNewDataRelSection = (layoutOrder == prevLayoutOrder) ? false:true;
+                  if (isNewDataRelSection) dataRelSecCtr++;
+                  prevLayoutOrder = layoutOrder;
+                }
+                MAI->FixupsDataRel.push_back(std::make_tuple(offset, derefSize, IsPCRel, \
+                     fixupParentID, SymbolRefFixupName, isNewDataRelSection, secName, numJTEntries, jtEntrySize));
+              }
+
+              else {
+                if (dataSecCtr == 0) {
+                  prevLayoutOrder = layoutOrder;
+                  dataSecCtr++;
+                }
+                else {
+                  isNewDataSection =  (layoutOrder == prevLayoutOrder) ? false:true;
+                  if (isNewDataSection) dataSecCtr++;
+                  prevLayoutOrder = layoutOrder;
+                }
+                MAI->FixupsData.push_back(std::make_tuple(offset, derefSize, IsPCRel, \
+                     fixupParentID, SymbolRefFixupName, isNewDataSection, secName, numJTEntries, jtEntrySize));
+              }
+            }
+
+            else if (secName.find(".init_array") == 0) {
+              if (initSecCtr == 0) {
+                prevLayoutOrder = layoutOrder;
+                initSecCtr++;
+              }
+              else {
+                isNewInitSection = (layoutOrder == prevLayoutOrder) ? false:true;
+                if (isNewInitSection) initSecCtr++;
+                prevLayoutOrder = layoutOrder;
+              }
+              MAI->FixupsInitArray.push_back(std::make_tuple(offset, derefSize, IsPCRel, \
+                   fixupParentID, SymbolRefFixupName, isNewInitSection, secName, numJTEntries, jtEntrySize));
+            }
+
+            // else // debug_* sections
+        }
       }
     }
   }
+}
+
+// Koo: Serialize reorder_info data with Google's protocol buffer format, calling by
+//      ELFObjectWriter::writeSectionData() from writeObject()@ELFObjectWriter.cpp
+std::string MCAssembler::WriteRandInfo(const MCAsmLayout &Layout) const {
+  ShuffleInfo::ReorderInfo reorder_info;
+  serializeReorderInfo(&reorder_info, Layout);
+  std::string randContents;
+
+  if (!reorder_info.SerializeToString(&randContents)) {
+    errs() << "[CCR-Error] MCAssembler::WriteRandInfo - Failed to serialize the shuffling information to .rand section! \n";
+  }
+
+  // Koo: MCObjectWriter has been reshaped: writeBytes() is gone; thus
+  // 	  https://reviews.llvm.org/D47043 (as of Aug. 2019)
+  //	  Just write the content in ELFWriter::writeSectionData() instead
+  // MCObjectWriter& OW = (*this).getWriter();
+  //OW.writeBytes(randContents);
+  //MCObjectWriter *Writer = getWriterPtr();
+  
+  std::string objFileName(Layout.getAssembler().getContext().getMainFileName());
+
+  if (objFileName.length() == 0)
+    objFileName = getObjTmpName();
+
+  DEBUG_WITH_TYPE("ccr-metadata", dbgs() << "Successfully wrote the metadata in a .rand section for " << objFileName << "\n");
+  google::protobuf::ShutdownProtobufLibrary();
+  return randContents;
 }
 
 void MCAssembler::Finish() {
@@ -900,8 +1408,33 @@ bool MCAssembler::relaxInstruction(MCAsmLayout &Layout,
                                    MCRelaxableFragment &F) {
   assert(getEmitterPtr() &&
          "Expected CodeEmitter defined for relaxInstruction");
-  if (!fragmentNeedsRelaxation(&F, Layout))
+		 
+  // Koo
+  // Whether or not the instruction has been relaxed
+  // The RelaxableFragment must be counted as the emitted bytes
+  const MCAsmInfo *MAI = Layout.getAssembler().getContext().getAsmInfo();
+  std::string ID = F.getInst().getParent();
+  unsigned relaxedBytes = F.getRelaxedBytes();
+  unsigned fixupCtr = F.getFixup();
+  
+  if (!fragmentNeedsRelaxation(&F, Layout)) {
+    // [Case 1] Unrelaxed instruction
+    if (ID.length() > 0) {
+      unsigned curBytes = F.getInst().getByteCtr();
+      if (relaxedBytes < curBytes) {
+        // RelaxableFragment always contains relaxedBytes and fixupCtr variable 
+        // for the adjustment in case of re-evaluation (simple hack but tricky)
+        MAI->updateByteCounter(ID, curBytes - relaxedBytes, 1 - fixupCtr, 
+                              /*isAlign=*/ false, /*isInline=*/ false);
+        F.setRelaxedBytes(curBytes);
+        F.setFixup(1);
+
+        // If this fixup points to Jump Table Symbol, update it.
+        F.getFixups()[0].setFixupParentID(ID);
+      }
+    }
     return false;
+  }
 
   ++stats::RelaxedInstructions;
 
@@ -926,6 +1459,18 @@ bool MCAssembler::relaxInstruction(MCAsmLayout &Layout,
   F.setInst(Relaxed);
   F.getContents() = Code;
   F.getFixups() = Fixups;
+  
+  // Koo [Case 2] Relaxed instruction: 
+  // The only relaxations X86 does is from a 1byte pcrel to a 4byte pcrel
+  // Note: The relaxable fragment could be re-evaluated multiple times for relaxation
+  //       Thus update it only if the relaxable fragment has not been relaxed previously 
+  if (relaxedBytes < Code.size() && ID.length() > 0) {
+    MAI->updateByteCounter(ID, Code.size() - relaxedBytes, 1 - fixupCtr, \
+                           /*isAlign=*/ false, /*isInline=*/ false);
+    F.setRelaxedBytes(Code.size());
+    F.setFixup(1);
+    F.getFixups()[0].setFixupParentID(ID);
+  }
 
   return true;
 }

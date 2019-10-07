@@ -140,6 +140,8 @@ public:
 
 
   bool writeNopData(raw_ostream &OS, uint64_t Count) const override;
+  
+  unsigned getFixupKindLog2Size(unsigned Kind) const override { return 0; } // Koo [N/A Here]
 
   const MCTargetOptions &getTargetOptions() const { return TargetOptions; }
   RISCVABI::ABI getTargetABI() const { return TargetABI; }

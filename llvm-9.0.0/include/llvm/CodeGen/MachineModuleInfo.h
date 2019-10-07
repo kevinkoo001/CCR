@@ -50,6 +50,8 @@ class MMIAddrLabelMap;
 class MachineFunction;
 class Module;
 
+class MCObjectFileInfo; // Koo
+
 //===----------------------------------------------------------------------===//
 /// This class can be derived from and used by targets to hold private
 /// target-specific information for each Module.  Objects of type are
@@ -139,6 +141,8 @@ class MachineModuleInfo : public ImmutablePass {
   unsigned NextFnNum = 0;
   const Function *LastRequest = nullptr; ///< Used for shortcut/cache.
   MachineFunction *LastResult = nullptr; ///< Used for shortcut/cache.
+  
+  const MCObjectFileInfo *MOFI; // Koo
 
 public:
   static char ID; // Pass identification, replacement for typeid
@@ -156,6 +160,8 @@ public:
   MCContext &getContext() { return Context; }
 
   const Module *getModule() const { return TheModule; }
+  
+  const MCObjectFileInfo *getMCObjectFileInfo() const { return MOFI; } // Koo
 
   /// Returns the MachineFunction constructed for the IR function \p F.
   /// Creates a new MachineFunction if none exists yet.

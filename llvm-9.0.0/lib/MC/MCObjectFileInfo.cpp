@@ -358,6 +358,9 @@ void MCObjectFileInfo::initELFMCObjectFileInfo(const Triple &T, bool Large) {
   DataRelROSection = Ctx->getELFSection(".data.rel.ro", ELF::SHT_PROGBITS,
                                         ELF::SHF_ALLOC | ELF::SHF_WRITE);
 
+  // Koo
+  RandSection = Ctx->getELFSection(".rand", ELF::SHT_PROGBITS, 0);
+
   MergeableConst4Section =
       Ctx->getELFSection(".rodata.cst4", ELF::SHT_PROGBITS,
                          ELF::SHF_ALLOC | ELF::SHF_MERGE, 4, "");

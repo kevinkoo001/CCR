@@ -3142,6 +3142,9 @@ bool X86AsmParser::MatchAndEmitATTInstruction(SMLoc IDLoc, unsigned &Opcode,
   unsigned Prefixes = getPrefixes(Operands);
 
   MCInst Inst;
+  
+  // Koo: Set parentID for both inline and full assembly here.
+  Inst.setParent(getSTI().getParentID());
 
   // If VEX3 encoding is forced, we need to pass the USE_VEX3 flag to the
   // encoder.
@@ -3342,6 +3345,9 @@ bool X86AsmParser::MatchAndEmitIntelInstruction(SMLoc IDLoc, unsigned &Opcode,
   X86Operand &Op = static_cast<X86Operand &>(*Operands[0]);
 
   MCInst Inst;
+  
+  // Koo: Set parentID for both inline and full assembly here.
+  Inst.setParent(getSTI().getParentID());
 
   // If VEX3 encoding is forced, we need to pass the USE_VEX3 flag to the
   // encoder.

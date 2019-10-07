@@ -26,40 +26,6 @@
 #include "llvm/Support/raw_ostream.h"
 using namespace llvm;
 
-static unsigned getFixupKindSize(unsigned Kind) {
-  switch (Kind) {
-  default:
-    llvm_unreachable("invalid fixup kind!");
-  case FK_NONE:
-    return 0;
-  case FK_PCRel_1:
-  case FK_SecRel_1:
-  case FK_Data_1:
-    return 1;
-  case FK_PCRel_2:
-  case FK_SecRel_2:
-  case FK_Data_2:
-    return 2;
-  case FK_PCRel_4:
-  case X86::reloc_riprel_4byte:
-  case X86::reloc_riprel_4byte_relax:
-  case X86::reloc_riprel_4byte_relax_rex:
-  case X86::reloc_riprel_4byte_movq_load:
-  case X86::reloc_signed_4byte:
-  case X86::reloc_signed_4byte_relax:
-  case X86::reloc_global_offset_table:
-  case X86::reloc_branch_4byte_pcrel:
-  case FK_SecRel_4:
-  case FK_Data_4:
-    return 4;
-  case FK_PCRel_8:
-  case FK_SecRel_8:
-  case FK_Data_8:
-  case X86::reloc_global_offset_table8:
-    return 8;
-  }
-}
-
 namespace {
 
 class X86ELFObjectWriter : public MCELFObjectTargetWriter {
@@ -106,11 +72,47 @@ public:
   bool shouldForceRelocation(const MCAssembler &Asm, const MCFixup &Fixup,
                              const MCValue &Target) override;
 
+  // Koo: Moved to MCAsmBackend() class inside so that it can be called in MCAssembler class
+  //      Looks like the function name (LLVM 9) changes to getFixupKindSize() but that's okay!
+  unsigned getFixupKindLog2Size(unsigned Kind) const override {
+     switch (Kind) {
+     default:
+       llvm_unreachable("invalid fixup kind!");
+     case FK_NONE:
+       return 0;
+     case FK_PCRel_1:
+     case FK_SecRel_1:
+     case FK_Data_1:
+       return 1;
+     case FK_PCRel_2:
+     case FK_SecRel_2:
+     case FK_Data_2:
+       return 2;
+     case FK_PCRel_4:
+     case X86::reloc_riprel_4byte:
+     case X86::reloc_riprel_4byte_relax:
+     case X86::reloc_riprel_4byte_relax_rex:
+     case X86::reloc_riprel_4byte_movq_load:
+     case X86::reloc_signed_4byte:
+     case X86::reloc_signed_4byte_relax:
+     case X86::reloc_global_offset_table:
+     case X86::reloc_branch_4byte_pcrel:
+     case FK_SecRel_4:
+     case FK_Data_4:
+       return 4;
+     case FK_PCRel_8:
+     case FK_SecRel_8:
+     case FK_Data_8:
+     case X86::reloc_global_offset_table8:
+       return 8;
+     }
+  }
+
   void applyFixup(const MCAssembler &Asm, const MCFixup &Fixup,
                   const MCValue &Target, MutableArrayRef<char> Data,
                   uint64_t Value, bool IsResolved,
                   const MCSubtargetInfo *STI) const override {
-    unsigned Size = getFixupKindSize(Fixup.getKind());
+    unsigned Size = getFixupKindLog2Size(Fixup.getKind());
 
     assert(Fixup.getOffset() + Size <= Data.size() && "Invalid fixup offset!");
 

@@ -847,6 +847,13 @@ void ELFWriter::writeSectionData(const MCAssembler &Asm, MCSection &Sec,
                                  const MCAsmLayout &Layout) {
   MCSectionELF &Section = static_cast<MCSectionELF &>(Sec);
   StringRef SectionName = Section.getSectionName();
+  
+  // Koo: process the special section (.rand) to store the information for transformation
+  if (SectionName.startswith(".rand")) {
+	std::string randContents = Asm.WriteRandInfo(Layout);
+	W.OS << randContents;
+    return;
+  }
 
   auto &MC = Asm.getContext();
   const auto &MAI = MC.getAsmInfo();

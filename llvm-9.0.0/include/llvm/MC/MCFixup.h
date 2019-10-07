@@ -15,6 +15,8 @@
 #include "llvm/Support/SMLoc.h"
 #include <cassert>
 
+#include <string> // Koo
+
 namespace llvm {
 class MCExpr;
 
@@ -86,6 +88,12 @@ class MCFixup {
 
   /// The source location which gave rise to the fixup, if any.
   SMLoc Loc;
+  
+  // Koo
+  std::string FixupParentID;
+  bool isJumpTableRef = false;
+  std::string SymbolRefFixupName;
+  
 public:
   static MCFixup create(uint32_t Offset, const MCExpr *Value,
                         MCFixupKind Kind, SMLoc Loc = SMLoc()) {
@@ -124,6 +132,14 @@ public:
 
   uint32_t getOffset() const { return Offset; }
   void setOffset(uint32_t Value) { Offset = Value; }
+  
+  // Koo
+  std::string getFixupParentID() const { return FixupParentID; }
+  void setFixupParentID(std::string Value) { FixupParentID = Value; }
+  bool getIsJumpTableRef() const { return isJumpTableRef; }
+  void setIsJumpTableRef(bool V) { isJumpTableRef = V; }
+  std::string getSymbolRefFixupName() const { return SymbolRefFixupName; }
+  void setSymbolRefFixupName(std::string FN) { SymbolRefFixupName = FN; }
 
   const MCExpr *getValue() const { return Value; }
 

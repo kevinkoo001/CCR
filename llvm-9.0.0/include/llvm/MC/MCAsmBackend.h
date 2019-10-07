@@ -114,6 +114,11 @@ public:
                           uint64_t Value, bool IsResolved,
                           const MCSubtargetInfo *STI) const = 0;
 
+// Koo: Make the function virual for the use
+  //      All backend but x86 does not employee it (or implemented locally)
+  //      PPCMachO and X86MachO might rewrite the following function
+  virtual unsigned getFixupKindLog2Size(unsigned Kind) const = 0;
+  
   /// Check whether the given target requires emitting differences of two
   /// symbols as a set of relocations.
   virtual bool requiresDiffExpressionRelocations() const { return false; }

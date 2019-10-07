@@ -40,6 +40,8 @@ namespace {
     void EmitCOFFSymbolStorageClass(int StorageClass) override {}
     void EmitCOFFSymbolType(int Type) override {}
     void EndCOFFSymbolDef() override {}
+	
+	void setObjTmpName(std::string tmpFileName) override {} // Koo
   };
 
 }

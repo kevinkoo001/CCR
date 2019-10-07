@@ -1642,6 +1642,9 @@ encodeInstruction(const MCInst &MI, raw_ostream &OS,
     abort();
   }
 #endif
+
+  // Koo: Update the actual bytes to be emitted in MCSubtargetInfo class
+  STI.setByteCtr(CurByte);
 }
 
 MCCodeEmitter *llvm::createX86MCCodeEmitter(const MCInstrInfo &MCII,

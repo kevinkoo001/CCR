@@ -646,6 +646,9 @@ private:
   bool parseDirectiveIrp(SMLoc DirectiveLoc);  // ".irp"
   bool parseDirectiveIrpc(SMLoc DirectiveLoc); // ".irpc"
   bool parseDirectiveEndr(SMLoc DirectiveLoc); // ".endr"
+  
+  // Koo
+  void handleDirectEmitDirectives(unsigned sz);
 
   // "_emit" or "__emit"
   bool parseDirectiveMSEmit(SMLoc DirectiveLoc, ParseStatementInfo &Info,
@@ -1837,8 +1840,11 @@ bool AsmParser::parseStatement(ParseStatementInfo &Info,
     getTargetParser().doBeforeLabelEmit(Sym);
 
     // Emit the label.
-    if (!getTargetParser().isParsingInlineAsm())
+    if (!getTargetParser().isParsingInlineAsm()) {
+      // Koo: each label begins a new basic block (is this reliable?)
+      MAI.assemBBLNo++;
       Out.EmitLabel(Sym, IDLoc);
+    }
 
     // If we are generating dwarf for assembly source files then gather the
     // info to make a dwarf label entry for this label if needed.
@@ -1906,6 +1912,9 @@ bool AsmParser::parseStatement(ParseStatementInfo &Info,
     // registered itself to parse this directive.
     std::pair<MCAsmParserExtension *, DirectiveHandler> Handler =
         ExtensionDirectiveMap.lookup(IDVal);
+	
+	 // Koo [Note] Eventually calls ELFAsmParser::ParseDirectiveType in ELFAsmParser
+    //            , which sets up a symbol attribute in EmitSymbolAttribute(). 
     if (Handler.first)
       return (*Handler.second)(Handler.first, IDVal, IDLoc);
 
@@ -2251,10 +2260,30 @@ bool AsmParser::parseStatement(ParseStatementInfo &Info,
   // If parsing succeeded, match the instruction.
   if (!ParseHadError) {
     uint64_t ErrorInfo;
+	
+	// Koo
+    if (MAI.isAssemFile) {
+      const MCSubtargetInfo &STI = getTargetParser().getSTI();
+
+      if (MAI.assemFuncNo == 0xffffffff) 
+        MAI.assemFuncNo = 0;
+
+      STI.setParentID(std::to_string(MAI.assemFuncNo) + "_" + std::to_string(MAI.assemBBLNo));
+      MAI.latestParentID = STI.getParentID();
+    }
+	
     if (getTargetParser().MatchAndEmitInstruction(
             IDLoc, Info.Opcode, Info.ParsedOperands, Out, ErrorInfo,
-            getTargetParser().isParsingInlineAsm()))
+            getTargetParser().isParsingInlineAsm())) {
+				
+	  // Koo: if opcode starts with "j" that is part of jump family, new BBL begins
+      //      is this always reliable? any other case to count BBL?
+      if (MAI.isAssemFile && OpcodeStr.find("j") == 0) {
+        MAI.assemBBLNo++;
+        MAI.prevOpcode = OpcodeStr;
+      }
       return true;
+	}
   }
   return false;
 }
@@ -3025,12 +3054,35 @@ bool AsmParser::parseDirectiveValue(StringRef IDVal, unsigned Size) {
       getStreamer().EmitIntValue(IntValue, Size);
     } else
       getStreamer().EmitValue(Value, Size, ExprLoc);
+  
+    // Koo: Special case - DirectiveValues emits each byte independently
+    handleDirectEmitDirectives(Size);
+	
     return false;
   };
 
   if (parseMany(parseOp))
     return addErrorSuffix(" in '" + Twine(IDVal) + "' directive");
   return false;
+}
+
+// Koo: We need to handle the bytes independently while parsing a few directives
+//  ::= (.byte | .short | ... ) [ expression (, expression)* ]
+//  ::= .octa [ hexconstant (, hexconstant)* ]
+//  ::= (.single | .double) [ expression (, expression)* ]
+void AsmParser::handleDirectEmitDirectives(unsigned sz) {
+  //const MCSubtargetInfo& STI = getTargetParser().getSTI();
+
+  // Control a corner case: in assembly it is possible to start with data before defining a function
+  if (MAI.assemFuncNo == 0xffffffff) {
+    MAI.specialCntPriorToFunc += sz;
+    return;
+  }
+
+  std::string parentID = (MAI.isAssemFile) ? \
+                         std::to_string(MAI.assemFuncNo) + "_" + std::to_string(MAI.assemBBLNo) : MAI.latestParentID;
+  MAI.updateByteCounter(parentID, sz, /*numFixups=*/ 0, /*isAlign=*/ false, /*isInline=*/ false);
+  MAI.latestParentID = parentID;
 }
 
 static bool parseHexOcta(AsmParser &Asm, uint64_t &hi, uint64_t &lo) {
@@ -3056,6 +3108,9 @@ static bool parseHexOcta(AsmParser &Asm, uint64_t &hi, uint64_t &lo) {
 ///  ::= .octa [ hexconstant (, hexconstant)* ]
 
 bool AsmParser::parseDirectiveOctaValue(StringRef IDVal) {
+  // Koo: Special case - parseDirectiveOctaValue always emits 8 bytes
+  handleDirectEmitDirectives(8);
+  
   auto parseOp = [&]() -> bool {
     if (checkForValidSection())
       return true;
@@ -3127,6 +3182,10 @@ bool AsmParser::parseDirectiveRealValue(StringRef IDVal,
       return true;
     getStreamer().EmitIntValue(AsInt.getLimitedValue(),
                                AsInt.getBitWidth() / 8);
+							   
+	// Koo: Special case - parseDirectiveRealValue emits independent bytes
+    handleDirectEmitDirectives((unsigned) AsInt.getBitWidth() / 8);
+	
     return false;
   };
 

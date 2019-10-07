@@ -58,6 +58,10 @@ public:
     addDirectiveHandler<&ELFAsmParser::ParseSectionDirectiveRoData>(".rodata");
     addDirectiveHandler<&ELFAsmParser::ParseSectionDirectiveTData>(".tdata");
     addDirectiveHandler<&ELFAsmParser::ParseSectionDirectiveTBSS>(".tbss");
+	
+	// Koo
+    addDirectiveHandler<&ELFAsmParser::ParseSectionDirectiveRand>(".rand");
+	
     addDirectiveHandler<
       &ELFAsmParser::ParseSectionDirectiveDataRel>(".data.rel");
     addDirectiveHandler<
@@ -137,6 +141,12 @@ public:
                               ELF::SHF_ALLOC | ELF::SHF_WRITE,
                               SectionKind::getData());
   }
+  
+  //Koo
+  bool ParseSectionDirectiveRand(StringRef, SMLoc) {
+      return ParseSectionSwitch(".rand", ELF::SHT_PROGBITS, 0, SectionKind::getData());
+  }
+  
   bool ParseDirectivePushSection(StringRef, SMLoc);
   bool ParseDirectivePopSection(StringRef, SMLoc);
   bool ParseDirectiveSection(StringRef, SMLoc);
@@ -594,6 +604,8 @@ EndStmt:
       Type = ELF::SHT_FINI_ARRAY;
     else if (hasPrefix(SectionName, ".preinit_array."))
       Type = ELF::SHT_PREINIT_ARRAY;
+    else if (SectionName == ".rand") // Koo
+      Type = ELF::SHT_NOTE;
   } else {
     if (TypeName == "init_array")
       Type = ELF::SHT_INIT_ARRAY;
@@ -609,6 +621,8 @@ EndStmt:
       Type = ELF::SHT_NOTE;
     else if (TypeName == "unwind")
       Type = ELF::SHT_X86_64_UNWIND;
+    else if (TypeName == "rand") // Koo
+      Type = ELF::SHT_PROGBITS;
     else if (TypeName == "llvm_odrtab")
       Type = ELF::SHT_LLVM_ODRTAB;
     else if (TypeName == "llvm_linker_options")
@@ -729,6 +743,12 @@ bool ELFAsmParser::ParseDirectiveType(StringRef, SMLoc) {
     return TokError("unexpected token in '.type' directive");
   Lex();
 
+  // Koo: Assembly file only - check ELF function type here during new symbol generation
+  if (getContext().getAsmInfo()->isAssemFile && Attr == MCSA_ELF_TypeFunction) {
+    getContext().getAsmInfo()->assemFuncNo++;
+    getContext().getAsmInfo()->assemBBLNo = 0;
+  }
+  
   getStreamer().EmitSymbolAttribute(Sym, Attr);
 
   return false;

@@ -27,6 +27,8 @@
 #include "llvm/IR/Dominators.h"
 #include "llvm/IR/Function.h"
 
+#include <string> // Koo
+
 using namespace llvm;
 using namespace ore;
 
@@ -71,6 +73,14 @@ bool MachineFunctionPass::runOnFunction(Function &F) {
     CountBefore = MF.getInstructionCount();
 
   bool RV = runOnMachineFunction(MF);
+  
+  // Koo: collect the canFallThrough info per each MBB here
+  for (MachineFunction::iterator I = MF.begin(), E = MF.end(); I != E; ++I) {
+    MachineBasicBlock *MBB = &*I;
+    std::string ID = std::to_string(MBB->getParent()->getFunctionNumber()) + "_" + \
+                     std::to_string(MBB->getNumber());
+    MF.canMBBFallThrough[ID] = MBB->canFallThrough();
+  }
 
   if (ShouldEmitSizeRemarks) {
     // We wanted size remarks. Check if there was a change to the number of
