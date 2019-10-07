@@ -1,0 +1,24 @@
+set(LLVM_LINK_COMPONENTS
+  Support
+  )
+
+add_clang_unittest(StaticAnalysisTests
+  AnalyzerOptionsTest.cpp
+  StoreTest.cpp
+  RegisterCustomCheckersTest.cpp
+  SymbolReaperTest.cpp
+  )
+
+target_link_libraries(StaticAnalysisTests
+  PRIVATE
+  clangBasic
+  clangAnalysis
+  clangAST
+  clangASTMatchers
+  clangCrossTU
+  clangFrontend
+  clangSerialization
+  clangStaticAnalyzerCore
+  clangStaticAnalyzerFrontend
+  clangTooling
+  )
