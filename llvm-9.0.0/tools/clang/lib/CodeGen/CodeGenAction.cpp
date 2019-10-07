@@ -91,6 +91,7 @@ namespace clang {
     const LangOptions &LangOpts;
     std::unique_ptr<raw_pwrite_stream> AsmOutStream;
     ASTContext *Context;
+    CompilerInstance &CI; // Koo
 
     Timer LLVMIRGeneration;
     unsigned LLVMIRGenerationRefCount;
@@ -117,18 +118,20 @@ namespace clang {
                     const LangOptions &LangOpts, bool TimePasses,
                     const std::string &InFile,
                     SmallVector<LinkModule, 4> LinkModules,
-                    std::unique_ptr<raw_pwrite_stream> OS, LLVMContext &C,
+                    std::unique_ptr<raw_pwrite_stream> OS, LLVMContext &C, CompilerInstance &CI, // Koo: Modified
                     CoverageSourceInfo *CoverageInfo = nullptr)
         : Diags(Diags), Action(Action), HeaderSearchOpts(HeaderSearchOpts),
           CodeGenOpts(CodeGenOpts), TargetOpts(TargetOpts), LangOpts(LangOpts),
           AsmOutStream(std::move(OS)), Context(nullptr),
           LLVMIRGeneration("irgen", "LLVM IR Generation Time"),
-          LLVMIRGenerationRefCount(0),
+          CI(CI), LLVMIRGenerationRefCount(0),  // Koo: Modified
           Gen(CreateLLVMCodeGen(Diags, InFile, HeaderSearchOpts, PPOpts,
                                 CodeGenOpts, C, CoverageInfo)),
           LinkModules(std::move(LinkModules)) {
       FrontendTimesIsEnabled = TimePasses;
       llvm::TimePassesIsEnabled = TimePasses;
+      // Koo: set the temp object file name in a current module
+      getModule()->setTmpObjFile(CI.getOutputTempObjFileName());
     }
     llvm::Module *getModule() const { return Gen->GetModule(); }
     std::unique_ptr<llvm::Module> takeModule() {
@@ -904,7 +907,7 @@ CodeGenAction::CreateASTConsumer(CompilerInstance &CI, StringRef InFile) {
       BA, CI.getDiagnostics(), CI.getHeaderSearchOpts(),
       CI.getPreprocessorOpts(), CI.getCodeGenOpts(), CI.getTargetOpts(),
       CI.getLangOpts(), CI.getFrontendOpts().ShowTimers, InFile,
-      std::move(LinkModules), std::move(OS), *VMContext, CoverageInfo));
+      std::move(LinkModules), std::move(OS), *VMContext, CI, CoverageInfo)); // Koo: Modified
   BEConsumer = Result.get();
 
   // Enable generating macro debug info only when debug info is not disabled and
