@@ -155,12 +155,46 @@ class BinaryBuilder():
                 self.instBin += textSection[:mainOffset]
 
             # Step 2-1) Update the location pointing to the main() after reordering if any
+            # TODO: A (dirty) hacky solution when having different _start implementation of CRT (i.e., crt1.o)
+            '''
+             In Utuntu 18.04 (or maybe other systems), the user-defined main() address at _start 
+             stores its value to a register in a rip-relative way as follows (*); 
+             for example; %rdi holds the main() hence it needs to be adjusted
+              <_start> in Ubuntu 16.04:
+                   d:	50                   	push   %rax
+                   e:	54                   	push   %rsp
+                   f:	49 c7 c0 00 00 00 00 	mov    $0x0,%r8
+                  16:	48 c7 c1 00 00 00 00 	mov    $0x0,%rcx
+                  1d:	48 c7 c7 00 00 00 00 	mov    $0x0,%rdi (*)
+                  24:	e8 00 00 00 00       	callq  29 <_start+0x29>
+                  
+              <_start> in Ubuntu 18.04:
+                   d:   50                      push   %rax
+                   e:   54                      push   %rsp
+                   f:   4c 8b 05 00 00 00 00    mov    0x0(%rip),%r8     # 16 <_start+0x16>
+                  16:   48 8b 0d 00 00 00 00    mov    0x0(%rip),%rcx    # 1d <_start+0x1d>
+                  1d:   48 8b 3d 00 00 00 00    mov    0x0(%rip),%rdi    # 24 <_start+0x24> (*)
+                  24:   ff 15 00 00 00 00       callq  *0x0(%rip)        # 2a <_start+0x2a>
+                  
+              As we do not collect fixups for non-user defined functions, just update it here accordingly
+              Still using disassembler is undesirable, thus do the check (0x3d), which looks too hacky.... 
+            '''
             mainAddr = self.UPK(FMT.INT, textSection[mainOffset: mainOffset + MAINOFFSZ])
+            is_main_rip_relative = ord(textSection[mainOffset - 1]) == 0x3d
+            if is_main_rip_relative:
+                adjust_val = self.EI.entryPoint + mainOffset + MAINOFFSZ
+                mainAddr =  mainAddr + adjust_val
+
             self.memo.origMainAddr = mainAddr
 
             if self.EI.base > 0: # Absolute address (w/o PIC/PIE option)
                 mainBBL = self.EI.getBBlByVA(mainAddr)
-                self.instBin += self.PK(FMT.INT, mainBBL.newVA)
+
+                # Here the pointer to the new main() should be adjusted in case of a "rip-relative" mov
+                if is_main_rip_relative:
+                    self.instBin += self.PK(FMT.INT, mainBBL.newVA - adjust_val)
+                else:
+                    self.instBin += self.PK(FMT.INT, mainBBL.newVA)
                 self.memo.instMainAddr = mainBBL.newVA
             else:                # Relative address (w/ PIC/PIE option)
                 mainBBL = self.EI.getBBlByVA(self.EI._getTextSecVA() + mainAddr + self.EI.mainAddrOffsetFromText + MAINOFFSZ)
