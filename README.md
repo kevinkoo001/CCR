@@ -82,7 +82,8 @@ The build script:
 
 > Note that the script has been tested on Ubuntu 16.04 only (using the default gcc 5.4 and gold 1.11). 
 If you have failed to build everything at the first attempt, you may want to change 
-the default linker to the system's gold linker before runing the build script again.
+the linker to the system's default linker (i.e., `ld.bfd`) before runing the build script again.
+We recommend not to use `ld.gold` for LLVM compilation.
 
 ### Build with Docker
 A Docker script is available for easily testing CCR within a Docker container. 
